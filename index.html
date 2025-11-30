@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EditContext Code Editor Demo</title>
+  <link rel="stylesheet" href="styles/editor.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0d1117;
+      color: #c9d1d9;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      font-size: 24px;
+      margin-bottom: 10px;
+    }
+
+    .info-bar {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 20px;
+      padding: 10px 15px;
+      background: #161b22;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .info-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .badge-success {
+      background: #238636;
+      color: white;
+    }
+
+    .badge-warning {
+      background: #9e6a03;
+      color: white;
+    }
+
+    #editor-container {
+      height: 500px;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid #30363d;
+    }
+
+    .controls {
+      margin-top: 20px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 8px 16px;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      background: #21262d;
+      color: #c9d1d9;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #30363d;
+    }
+
+    button:active {
+      background: #484f58;
+    }
+
+    .output {
+      margin-top: 20px;
+      padding: 15px;
+      background: #161b22;
+      border-radius: 6px;
+      font-family: 'Consolas', monospace;
+      font-size: 13px;
+      max-height: 200px;
+      overflow: auto;
+    }
+
+    .output pre {
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    footer {
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #30363d;
+      font-size: 13px;
+      color: #8b949e;
+    }
+
+    footer a {
+      color: #58a6ff;
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    .keyboard-shortcuts {
+      margin-top: 20px;
+      padding: 15px;
+      background: #161b22;
+      border-radius: 6px;
+    }
+
+    .keyboard-shortcuts h3 {
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    .shortcuts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .shortcut {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    kbd {
+      background: #30363d;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: inherit;
+      font-size: 12px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <h1>🖥️ EditContext Code Editor</h1>
+      <p>A modern code editor using the EditContext API with textarea fallback</p>
+    </header>
+
+    <div class="info-bar">
+      <div class="info-item">
+        <span>Input Mode:</span>
+        <span id="input-mode" class="badge">Loading...</span>
+      </div>
+      <div class="info-item">
+        <span>EditContext Support:</span>
+        <span id="ec-support" class="badge">Checking...</span>
+      </div>
+      <div class="info-item">
+        <span>Cursor:</span>
+        <span id="cursor-pos">0:0</span>
+      </div>
+    </div>
+
+    <div id="editor-container"></div>
+
+    <div class="controls">
+      <button id="btn-get-value">Get Value</button>
+      <button id="btn-set-value">Set Sample Code</button>
+      <button id="btn-undo">Undo (Ctrl+Z)</button>
+      <button id="btn-redo">Redo (Ctrl+Y)</button>
+      <button id="btn-focus">Focus Editor</button>
+      <button id="btn-toggle-theme">Toggle Theme</button>
+    </div>
+
+    <div class="output">
+      <pre id="output">Click "Get Value" to see editor content</pre>
+    </div>
+
+    <div class="keyboard-shortcuts">
+      <h3>⌨️ Keyboard Shortcuts</h3>
+      <div class="shortcuts-grid">
+        <div class="shortcut"><span>Undo</span><kbd>Ctrl+Z</kbd></div>
+        <div class="shortcut"><span>Redo</span><kbd>Ctrl+Y</kbd></div>
+        <div class="shortcut"><span>Select All</span><kbd>Ctrl+A</kbd></div>
+        <div class="shortcut"><span>Copy</span><kbd>Ctrl+C</kbd></div>
+        <div class="shortcut"><span>Cut</span><kbd>Ctrl+X</kbd></div>
+        <div class="shortcut"><span>Paste</span><kbd>Ctrl+V</kbd></div>
+        <div class="shortcut"><span>Word Left</span><kbd>Ctrl+←</kbd></div>
+        <div class="shortcut"><span>Word Right</span><kbd>Ctrl+→</kbd></div>
+        <div class="shortcut"><span>Line Start</span><kbd>Home</kbd></div>
+        <div class="shortcut"><span>Line End</span><kbd>End</kbd></div>
+        <div class="shortcut"><span>Doc Start</span><kbd>Ctrl+Home</kbd></div>
+        <div class="shortcut"><span>Doc End</span><kbd>Ctrl+End</kbd></div>
+      </div>
+    </div>
+
+    <footer>
+      <p>
+        EditContext API is available in Chrome 121+ and Edge 121+.
+        <a href="https://developer.mozilla.org/en-US/docs/Web/API/EditContext_API" target="_blank">Learn more on MDN</a>
+      </p>
+      <p style="margin-top: 8px;">
+        Try typing in Korean, Japanese, or Chinese to test IME support! 한글 日本語 中文
+      </p>
+    </footer>
+  </div>
+
+  <script type="module">
+    import { Editor, isEditContextSupported } from './src/index.js';
+
+    // Sample code
+    const SAMPLE_CODE = `// EditContext Code Editor Demo
+// Try typing, selecting, and using IME input!
+
+class Calculator {
+  constructor(initialValue = 0) {
+    this.value = initialValue;
+    this.history = [];
+  }
+
+  add(n) {
+    this.history.push(\`add(\${n})\`);
+    this.value += n;
+    return this;
+  }
+
+  subtract(n) {
+    this.history.push(\`subtract(\${n})\`);
+    this.value -= n;
+    return this;
+  }
+
+  multiply(n) {
+    this.history.push(\`multiply(\${n})\`);
+    this.value *= n;
+    return this;
+  }
+
+  getResult() {
+    return this.value;
+  }
+}
+
+// Usage
+const calc = new Calculator(10);
+const result = calc
+  .add(5)
+  .multiply(2)
+  .subtract(3)
+  .getResult();
+
+console.log(\`Result: \${result}\`); // 27
+console.log(\`History: \${calc.history.join(' → ')}\`);
+`;
+
+    // Initialize editor
+    const container = document.getElementById('editor-container');
+    const editor = new Editor(container, {
+      value: SAMPLE_CODE,
+      language: 'javascript',
+      fontSize: 14,
+      lineHeight: 22
+    });
+
+    // Update UI
+    const inputModeEl = document.getElementById('input-mode');
+    const ecSupportEl = document.getElementById('ec-support');
+    const cursorPosEl = document.getElementById('cursor-pos');
+    const outputEl = document.getElementById('output');
+
+    // Show input mode
+    inputModeEl.textContent = editor.inputMode;
+    inputModeEl.className = `badge ${editor.inputMode === 'editcontext' ? 'badge-success' : 'badge-warning'}`;
+
+    // Show EditContext support
+    const supported = isEditContextSupported();
+    ecSupportEl.textContent = supported ? 'Yes' : 'No';
+    ecSupportEl.className = `badge ${supported ? 'badge-success' : 'badge-warning'}`;
+
+    // Update cursor position
+    editor.on('selectionChange', (selection) => {
+      const pos = editor.getCursorPosition();
+      cursorPosEl.textContent = `${pos.line + 1}:${pos.column + 1}`;
+    });
+
+    // Log events to console
+    editor.on('change', (change) => {
+      console.log('[Editor] change:', change);
+    });
+
+    editor.on('compositionStart', () => {
+      console.log('[Editor] IME composition started');
+    });
+
+    editor.on('compositionEnd', () => {
+      console.log('[Editor] IME composition ended');
+    });
+
+    // Button handlers
+    document.getElementById('btn-get-value').onclick = () => {
+      outputEl.textContent = editor.getValue();
+    };
+
+    document.getElementById('btn-set-value').onclick = () => {
+      editor.setValue(SAMPLE_CODE);
+      outputEl.textContent = 'Sample code loaded!';
+    };
+
+    document.getElementById('btn-undo').onclick = () => {
+      editor.undo();
+    };
+
+    document.getElementById('btn-redo').onclick = () => {
+      editor.redo();
+    };
+
+    document.getElementById('btn-focus').onclick = () => {
+      editor.focus();
+    };
+
+    let isDark = true;
+    document.getElementById('btn-toggle-theme').onclick = () => {
+      isDark = !isDark;
+      container.querySelector('.ec-editor').classList.toggle('ec-theme-light', !isDark);
+    };
+
+    // Focus editor on load
+    editor.focus();
+
+    // Expose editor globally for debugging
+    window.editor = editor;
+    console.log('Editor instance available as window.editor');
+  </script>
+</body>
+
+</html>

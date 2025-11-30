@@ -1,0 +1,339 @@
+/**
+ * EditContext Code Editor Styles
+ * 
+ * Dark theme inspired by VS Code Dark+
+ */
+
+/* ============================================
+   Base Editor Styles
+   ============================================ */
+
+.ec-editor {
+  --ec-bg: #1e1e1e;
+  --ec-fg: #d4d4d4;
+  --ec-gutter-bg: #1e1e1e;
+  --ec-gutter-fg: #858585;
+  --ec-cursor-color: #aeafad;
+  --ec-selection-bg: rgba(38, 79, 120, 0.6);
+  --ec-line-highlight: rgba(255, 255, 255, 0.05);
+
+  /* Syntax colors */
+  --ec-keyword: #569cd6;
+  --ec-string: #ce9178;
+  --ec-number: #b5cea8;
+  --ec-comment: #6a9955;
+  --ec-operator: #d4d4d4;
+  --ec-punctuation: #d4d4d4;
+  --ec-function: #dcdcaa;
+  --ec-class: #4ec9b0;
+  --ec-identifier: #9cdcfe;
+  --ec-property: #9cdcfe;
+
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--ec-bg);
+  color: var(--ec-fg);
+  border-radius: 4px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.ec-editor * {
+  box-sizing: border-box;
+}
+
+/* ============================================
+   Layout
+   ============================================ */
+
+.ec-editor-wrapper {
+  display: flex;
+  height: 100%;
+  overflow: auto;
+}
+
+/* ============================================
+   Gutter (Line Numbers)
+   ============================================ */
+
+.ec-gutter {
+  flex-shrink: 0;
+  min-width: 50px;
+  background: var(--ec-gutter-bg);
+  color: var(--ec-gutter-fg);
+  text-align: right;
+  padding-right: 10px;
+  user-select: none;
+  border-right: 1px solid #333;
+}
+
+.ec-gutter-line {
+  padding-right: 5px;
+}
+
+/* ============================================
+   Content Area
+   ============================================ */
+
+.ec-content {
+  flex: 1;
+  position: relative;
+  /* overflow: auto; */
+  overflow: hidden;
+  /* outline: none; */
+  cursor: text;
+}
+
+/* Make content focusable */
+.ec-content:focus {
+  outline: none;
+}
+
+/* ============================================
+   Lines
+   ============================================ */
+
+.ec-lines {
+  position: relative;
+  white-space: pre;
+  z-index: 2;
+}
+
+.ec-line {
+  min-height: 1em;
+}
+
+/* ============================================
+   Cursor
+   ============================================ */
+
+.ec-cursor {
+  position: absolute;
+  width: 2px;
+  background: var(--ec-cursor-color);
+  z-index: 10;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.ec-focused .ec-cursor {
+  opacity: 1;
+}
+
+.ec-cursor-blink {
+  animation: ec-cursor-blink 1s step-end infinite;
+}
+
+@keyframes ec-cursor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ============================================
+   Selection
+   ============================================ */
+
+.ec-selection-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.ec-selection-rect {
+  position: absolute;
+  background: var(--ec-selection-bg);
+}
+
+/* ============================================
+   IME Composition Decorations
+   ============================================ */
+
+.ec-composition-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.ec-composition-decoration {
+  position: absolute;
+  height: 2px;
+}
+
+.ec-solid-underline {
+  background: var(--ec-fg);
+}
+
+.ec-dotted-underline {
+  background: repeating-linear-gradient(90deg, var(--ec-fg) 0, var(--ec-fg) 2px, transparent 2px, transparent 4px);
+}
+
+.ec-double-underline {
+  height: 4px;
+  background: linear-gradient(to bottom, var(--ec-fg) 0, var(--ec-fg) 1px, transparent 1px, transparent 2px, var(--ec-fg) 2px, var(--ec-fg) 3px);
+}
+
+.ec-squiggle-underline {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='3'%3E%3Cpath d='M0 2.5 Q1 0.5, 2 2.5 T4 2.5' fill='none' stroke='%23d4d4d4' stroke-width='0.7'/%3E%3C/svg%3E");
+  height: 3px;
+  background-repeat: repeat-x;
+}
+
+/* ============================================
+   Syntax Highlighting Tokens
+   ============================================ */
+
+.ec-token-keyword {
+  color: var(--ec-keyword);
+}
+
+.ec-token-string {
+  color: var(--ec-string);
+}
+
+.ec-token-number {
+  color: var(--ec-number);
+}
+
+.ec-token-comment {
+  color: var(--ec-comment);
+  font-style: italic;
+}
+
+.ec-token-operator {
+  color: var(--ec-operator);
+}
+
+.ec-token-punctuation {
+  color: var(--ec-punctuation);
+}
+
+.ec-token-function {
+  color: var(--ec-function);
+}
+
+.ec-token-class {
+  color: var(--ec-class);
+}
+
+.ec-token-identifier {
+  color: var(--ec-identifier);
+}
+
+.ec-token-property {
+  color: var(--ec-property);
+}
+
+.ec-token-whitespace {
+  /* Preserve whitespace */
+}
+
+.ec-token-plain {
+  color: var(--ec-fg);
+}
+
+/* ============================================
+   Hidden Textarea (Fallback Mode)
+   ============================================ */
+
+.editor-hidden-textarea {
+  position: absolute !important;
+  opacity: 0.01 !important;
+  width: 1px !important;
+  height: 1em !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  outline: none !important;
+  resize: none !important;
+  overflow: hidden !important;
+  white-space: pre !important;
+  background: transparent !important;
+  color: transparent !important;
+  caret-color: transparent !important;
+  z-index: 10 !important;
+}
+
+/* ============================================
+   Light Theme (Optional)
+   ============================================ */
+
+.ec-editor.ec-theme-light {
+  --ec-bg: #ffffff;
+  --ec-fg: #333333;
+  --ec-gutter-bg: #f5f5f5;
+  --ec-gutter-fg: #999999;
+  --ec-cursor-color: #000000;
+  --ec-selection-bg: rgba(173, 214, 255, 0.6);
+
+  --ec-keyword: #0000ff;
+  --ec-string: #a31515;
+  --ec-number: #098658;
+  --ec-comment: #008000;
+  --ec-operator: #333333;
+  --ec-punctuation: #333333;
+  --ec-function: #795e26;
+  --ec-class: #267f99;
+  --ec-identifier: #001080;
+  --ec-property: #001080;
+}
+
+/* ============================================
+   Scrollbar Styling
+   ============================================ */
+
+.ec-editor-wrapper::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+.ec-editor-wrapper::-webkit-scrollbar-track {
+  background: var(--ec-bg);
+}
+
+.ec-editor-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(121, 121, 121, 0.4);
+  border: 3px solid var(--ec-bg);
+  border-radius: 7px;
+}
+
+.ec-editor-wrapper::-webkit-scrollbar-thumb:hover {
+  background: rgba(121, 121, 121, 0.7);
+}
+
+.ec-editor-wrapper::-webkit-scrollbar-corner {
+  background: var(--ec-bg);
+}
+
+/* ============================================
+   Focus Indicators
+   ============================================ */
+
+.ec-editor:focus-within {
+  box-shadow: 0 0 0 1px #007acc;
+}
+
+/* ============================================
+   Responsive
+   ============================================ */
+
+@media (max-width: 600px) {
+  .ec-gutter {
+    min-width: 35px;
+    font-size: 12px;
+  }
+}
