@@ -7,124 +7,48 @@
 
 ### Context
 
-We need to choose an input handling method for a web-based code editor. The editor must support:
-
-- Regular keyboard input
-- IME composition (Korean, Japanese, Chinese)
-- Clipboard operations
-- Proper accessibility
-- Custom rendering (syntax highlighting)
+We need to choose an input handling method for a web-based code editor supporting regular keyboard input, IME composition, clipboard operations, and custom rendering.
 
 ### Options Considered
 
 #### Option A: ContentEditable
 
-- **Pros**:
-  - Native browser selection handling
-  - Good mobile support
-  - Built-in accessibility
-  - Works in all browsers
-- **Cons**:
-  - Must fight browser's built-in editing behaviors
-  - Inconsistent behavior across browsers
-  - DOM mutations interfere with custom rendering
-  - Difficult to implement custom undo/redo
+- **Pros**: Native selection, mobile support, built-in accessibility
+- **Cons**: Must fight browser behaviors, inconsistent across browsers, DOM mutations interfere
 
-#### Option B: Hidden Textarea (Monaco/VSCode approach)
+#### Option B: Hidden Textarea (Monaco approach)
 
-- **Pros**:
-  - Works in all browsers
-  - Full control over rendering
-  - Native IME support through textarea
-  - Simple implementation
-- **Cons**:
-  - Accessibility issues (screen readers can't read content)
-  - Sync issues between textarea and display
-  - IME window positioning can be problematic
-  - Requires complex position calculations
+- **Pros**: Works everywhere, full rendering control, native IME
+- **Cons**: Accessibility issues, sync problems, complex position calculations
 
 #### Option C: EditContext API
 
-- **Pros**:
-  - Clean separation of input and rendering
-  - Direct integration with OS text services
-  - No hidden elements needed
-  - Better accessibility potential
-  - No browser editing quirks to fight
-  - Purpose-built for custom editors
-- **Cons**:
-  - Limited browser support (Chrome/Edge 121+ only)
-  - New API, less documentation
-  - Must implement everything manually (cursor, selection, scrolling)
+- **Pros**: Clean separation, direct OS integration, no hidden elements, purpose-built
+- **Cons**: Limited browser support (Chrome/Edge 121+), must implement everything
 
 ### Decision
 
-Use **EditContext API** as the primary input method with **Hidden Textarea as fallback** for unsupported browsers.
+Use **EditContext API** as primary with **Hidden Textarea as fallback**.
 
 ### Consequences
 
-- **Positive**:
-  - Clean architecture with clear separation of concerns
-  - Future-proof (EditContext is the emerging standard)
-  - Best possible IME integration on supported browsers
-  - No DOM manipulation conflicts
-- **Negative**:
-  - Must maintain two input handlers
-  - Increased complexity in InputHandler
-  - Testing required across multiple browsers
-- **Risks**:
-  - Firefox/Safari may never implement EditContext (mitigation: fallback works well)
-
-### Related
-
-- ADR-002: Input Handler Architecture
+- **Positive**: Clean architecture, future-proof, best IME integration
+- **Negative**: Must maintain two handlers, increased complexity
 
 ---
 
-## ADR-002: Unified InputHandler with Automatic Fallback
+## ADR-002: Strategy Pattern for Input Handlers
 
 **Date**: 2024-01-15  
 **Status**: Accepted
 
 ### Context
 
-Given ADR-001's decision to use EditContext with textarea fallback, we need to decide how to structure the input handling code to support both methods.
-
-### Options Considered
-
-#### Option A: Single Class with Conditionals
-
-- **Pros**:
-  - Single file to maintain
-  - No abstraction overhead
-- **Cons**:
-  - Mixed concerns
-  - Difficult to test
-  - Code becomes complex with many if/else branches
-
-#### Option B: Strategy Pattern with Separate Handlers
-
-- **Pros**:
-  - Clean separation of implementations
-  - Easy to test each handler independently
-  - Easy to add new input methods
-  - Follows Open/Closed principle
-- **Cons**:
-  - More files to maintain
-  - Slight abstraction overhead
-
-#### Option C: Inheritance with Base Class
-
-- **Pros**:
-  - Shared code in base class
-  - Clear hierarchy
-- **Cons**:
-  - Tight coupling
-  - Less flexible than composition
+Need to support both EditContext and textarea fallback cleanly.
 
 ### Decision
 
-Use **Strategy Pattern** (Option B) with:
+Use **Strategy Pattern** with:
 
 - `InputHandler` - Unified facade that selects strategy
 - `EditContextHandler` - EditContext implementation
@@ -132,17 +56,8 @@ Use **Strategy Pattern** (Option B) with:
 
 ### Consequences
 
-- **Positive**:
-  - Each handler is self-contained and testable
-  - Easy to add new input methods (e.g., for specific platforms)
-  - Clear API boundary between handlers
-- **Negative**:
-  - Three files instead of one
-  - Must ensure API consistency between handlers
-
-### Related
-
-- ADR-001: Use EditContext API as Primary Input Method
+- **Positive**: Each handler self-contained and testable, easy to extend
+- **Negative**: Three files instead of one
 
 ---
 
@@ -153,336 +68,265 @@ Use **Strategy Pattern** (Option B) with:
 
 ### Context
 
-We need to choose how to store and manipulate document text internally. The choice affects:
-
-- Memory usage
-- Edit performance
-- Line-based operations (syntax highlighting, line numbers)
+Choose internal text storage structure affecting memory, performance, and line operations.
 
 ### Options Considered
 
-#### Option A: Single String
-
-- **Pros**:
-  - Simple implementation
-  - Direct mapping to textarea value
-  - Easy serialization
-- **Cons**:
-  - Poor performance for large files (string concatenation)
-  - Requires splitting for line operations
-  - Memory copying on every edit
-
-#### Option B: Array of Lines
-
-- **Pros**:
-  - Efficient line-based operations
-  - Good for syntax highlighting (per-line)
-  - Natural fit for line numbers
-  - Reasonable edit performance
-- **Cons**:
-  - Must join for full text
-  - Cross-line operations slightly complex
-
-#### Option C: Piece Table (like VSCode)
-
-- **Pros**:
-  - Excellent performance for large files
-  - Efficient undo/redo
-  - Minimal memory copying
-- **Cons**:
-  - Complex implementation
-  - Overkill for simple editor
-  - Harder to debug
-
-#### Option D: Rope Data Structure
-
-- **Pros**:
-  - Excellent performance for very large files
-  - Balanced tree structure
-- **Cons**:
-  - Very complex implementation
-  - Significant overhead for small files
+| Option         | Performance          | Complexity | Notes                             |
+| -------------- | -------------------- | ---------- | --------------------------------- |
+| Single String  | Poor for large files | Simple     | String concatenation overhead     |
+| Array of Lines | Good                 | Medium     | Natural fit for tokenizer         |
+| Piece Table    | Excellent            | High       | VSCode approach, overkill for now |
+| Rope           | Excellent            | Very High  | For very large files only         |
 
 ### Decision
 
-Use **Array of Lines** (Option B) for initial implementation.
-
-Rationale:
-
-- Good balance of simplicity and performance
-- Natural fit for our tokenizer (line-based)
-- Easy to upgrade to Piece Table later if needed
+Use **Array of Lines** for initial implementation.
 
 ### Consequences
 
-- **Positive**:
-  - Simple, understandable code
-  - Fast line-based operations
-  - Easy integration with tokenizer
-- **Negative**:
-  - May need optimization for very large files (>100K lines)
-  - Cross-line operations require more code
-- **Risks**:
-  - Performance degradation with large files (mitigation: can migrate to Piece Table)
-
-### Related
-
-- ADR-004: Tokenizer Strategy
+- **Positive**: Simple, fast line operations, easy tokenizer integration
+- **Negative**: May need optimization for very large files (>100K lines)
 
 ---
 
-## ADR-004: Simple Regex-Based Tokenizer
+## ADR-004: Monarch-Style Tokenizer
 
-**Date**: 2024-01-15  
+**Date**: 2024-01-20  
 **Status**: Accepted
 
 ### Context
 
-We need syntax highlighting for the code editor. Must choose tokenization approach.
+Need syntax highlighting with support for multi-line constructs (comments, strings, templates).
 
 ### Options Considered
 
-#### Option A: TextMate Grammars (like VSCode)
+#### Option A: Simple Regex (Current)
 
-- **Pros**:
-  - Industry standard
-  - Huge library of existing grammars
-  - Accurate highlighting
-- **Cons**:
-  - Complex Oniguruma regex engine needed
-  - Large bundle size
-  - Overkill for simple editor
+- **Pros**: Fast, simple, no dependencies
+- **Cons**: Cannot handle multi-line constructs, limited accuracy
 
-#### Option B: Tree-sitter
+#### Option B: TextMate Grammars
 
-- **Pros**:
-  - Accurate parsing
-  - Incremental updates
-  - Error recovery
-- **Cons**:
-  - WASM required
-  - Complex setup
-  - Large grammar files
+- **Pros**: Industry standard, thousands of grammars, accurate
+- **Cons**: Needs Oniguruma (WASM ~500KB), complex
 
-#### Option C: Simple Regex Tokenizer
+#### Option C: Monarch-Style State Machine
 
-- **Pros**:
-  - Small and fast
-  - Easy to understand and modify
-  - No dependencies
-  - Good enough for basic highlighting
-- **Cons**:
-  - Not as accurate as full parser
-  - Limited to simple patterns
-  - Multi-line constructs difficult
+- **Pros**: Handles multi-line, extensible, reasonable performance, no WASM
+- **Cons**: Must write grammars from scratch, Monaco-inspired but custom
+
+#### Option D: Tree-sitter
+
+- **Pros**: True parsing, incremental, error recovery
+- **Cons**: WASM required, complex setup, overkill for highlighting
 
 ### Decision
 
-Use **Simple Regex Tokenizer** (Option C) for initial implementation.
+Use **Monarch-Style State Machine** tokenizer.
 
 ### Consequences
 
-- **Positive**:
-  - Zero dependencies
-  - Fast tokenization
-  - Easy to add new languages
-  - Small bundle size
-- **Negative**:
-  - Some edge cases won't highlight correctly
-  - Multi-line strings/comments need special handling
-- **Risks**:
-  - Users may expect VSCode-quality highlighting (mitigation: document limitations)
-
-### Related
-
-- ADR-003: Line-Based Document Model
+- **Positive**: Multi-line support, extensible, good performance
+- **Negative**: Custom grammar format, must write all grammars
 
 ---
 
-## ADR-005: Event-Based Communication
+## ADR-005: Separate Tokenizer and Language Service
 
-**Date**: 2024-01-15  
+**Date**: 2024-01-20  
 **Status**: Accepted
 
 ### Context
 
-Components need to communicate (e.g., Document → View, Selection → Cursor). Must choose communication pattern.
+Need both fast syntax highlighting (every keystroke) and code intelligence (AST, completions).
 
 ### Options Considered
 
-#### Option A: Direct Method Calls
+#### Option A: Single Combined System
 
-- **Pros**:
-  - Simple
-  - Type-safe
-  - Easy to trace
-- **Cons**:
-  - Tight coupling
-  - Circular dependencies possible
-  - Hard to extend
+- **Pros**: Unified codebase, shared parsing
+- **Cons**: Performance bottleneck, complexity
 
-#### Option B: Observer Pattern (Events)
+#### Option B: Separate Systems
 
-- **Pros**:
-  - Loose coupling
-  - Easy to add listeners
-  - Flexible extension
-- **Cons**:
-  - Harder to trace flow
-  - Must manage subscriptions
-
-#### Option C: Redux-like Store
-
-- **Pros**:
-  - Single source of truth
-  - Time-travel debugging
-  - Predictable state
-- **Cons**:
-  - Boilerplate
-  - Overhead for simple editor
-  - Learning curve
+- **Pros**: Tokenizer stays sync/fast, parser can be async, independent optimization
+- **Cons**: Some duplication, two codepaths
 
 ### Decision
 
-Use **Observer Pattern** with simple event emitter on each component.
+**Separate systems**:
+
+- **Tokenizer**: Sync, per-keystroke, Monarch-style for highlighting
+- **Language Service**: Async/debounced, full parsing for intelligence
 
 ### Consequences
 
-- **Positive**:
-  - Components loosely coupled
-  - Easy to add new features that react to events
-  - View updates automatically on model changes
-- **Negative**:
-  - Must track subscriptions for cleanup
-  - Event flow less obvious than direct calls
-- **Risks**:
-  - Memory leaks from forgotten subscriptions (mitigation: dispose pattern)
+- **Positive**: Highlighting never blocks, parser can take time
+- **Negative**: Two separate token/parse passes
+- **Future**: Language Service can move to Web Worker
 
 ---
 
-## ADR-006: CSS Variables for Theming
+## ADR-006: Recursive Descent Parser
 
-**Date**: 2024-01-15  
+**Date**: 2024-01-20  
 **Status**: Accepted
 
 ### Context
 
-Need theming support for light/dark modes and syntax colors.
+Need to generate AST from tokens for code intelligence features.
 
 ### Options Considered
 
-#### Option A: Multiple CSS Files
+#### Option A: Hand-written Recursive Descent
 
-- **Pros**:
-  - Complete separation
-  - Easy to create themes
-- **Cons**:
-  - File switching required
-  - Duplicate selectors
+- **Pros**: Full control, easy to understand, good error recovery
+- **Cons**: More code to write, must handle precedence manually
 
-#### Option B: CSS Variables
+#### Option B: Parser Generator (PEG.js, ANTLR)
 
-- **Pros**:
-  - Runtime switching
-  - Single CSS file
-  - Easy to customize
-  - Can be set via JavaScript
-- **Cons**:
-  - IE11 not supported (acceptable)
+- **Pros**: Grammar-driven, less code, proven algorithms
+- **Cons**: External dependency, generated code harder to debug
 
-#### Option C: CSS-in-JS
+#### Option C: Pratt Parser / Precedence Climbing
 
-- **Pros**:
-  - Dynamic styling
-  - Scoped styles
-- **Cons**:
-  - Runtime overhead
-  - Requires build step or library
+- **Pros**: Elegant expression parsing, handles precedence well
+- **Cons**: Less intuitive for statements, learning curve
 
 ### Decision
 
-Use **CSS Variables** for all theme-related values.
+Use **Hand-written Recursive Descent** parser.
 
-```css
-.ec-editor {
-  --ec-bg: #1e1e1e;
-  --ec-keyword: #569cd6;
-  /* ... */
-}
+### Consequences
 
-.ec-editor.ec-theme-light {
-  --ec-bg: #ffffff;
-  --ec-keyword: #0000ff;
-}
+- **Positive**: Full control, easy to add error recovery, no dependencies
+- **Negative**: More code, must handle operator precedence explicitly
+- **Mitigation**: Use precedence climbing for expressions within RD framework
+
+---
+
+## ADR-007: Symbol Table with Scope Hierarchy
+
+**Date**: 2024-01-20  
+**Status**: Accepted
+
+### Context
+
+Auto-complete needs to know what variables/functions are available at cursor position.
+
+### Options Considered
+
+#### Option A: Flat Symbol List
+
+- **Pros**: Simple implementation
+- **Cons**: No scope awareness, incorrect completions
+
+#### Option B: Scope Tree
+
+- **Pros**: Correct scoping, shadowing support, proper resolution
+- **Cons**: More complex, must track scope entry/exit
+
+### Decision
+
+Use **Scope Tree** (linked scopes with parent references).
+
+```
+GlobalScope
+├── FunctionScope (foo)
+│   └── BlockScope (if)
+└── ClassScope (MyClass)
+    └── MethodScope (render)
 ```
 
 ### Consequences
 
-- **Positive**:
-  - Easy theme switching (toggle class)
-  - Users can customize via CSS
-  - No JavaScript needed for basic theming
-- **Negative**:
-  - No IE11 support (acceptable)
+- **Positive**: Correct variable resolution, proper shadowing
+- **Negative**: Must track scope during AST traversal
 
 ---
 
-## ADR-007: No External Dependencies
+## ADR-008: Debounced Analysis with Immediate Tokenization
 
-**Date**: 2024-01-15  
+**Date**: 2024-01-20  
 **Status**: Accepted
 
 ### Context
 
-Decide whether to use external libraries for common functionality.
-
-### Options Considered
-
-#### Option A: Use Libraries (lodash, eventemitter3, etc.)
-
-- **Pros**:
-  - Battle-tested code
-  - Less code to maintain
-- **Cons**:
-  - Bundle size increases
-  - Version management
-  - Potential security issues
-
-#### Option B: Vanilla JavaScript Only
-
-- **Pros**:
-  - Zero dependencies
-  - Small bundle size
-  - Full control
-  - No supply chain risks
-- **Cons**:
-  - More code to write
-  - Must handle edge cases
+Balance between responsive highlighting and expensive parsing.
 
 ### Decision
 
-Use **Vanilla JavaScript Only** - no external runtime dependencies.
+- **Tokenizer**: Immediate (sync), every keystroke
+- **Language Service**: Debounced 150ms after last keystroke
+- **Auto-complete**: Debounced 100ms after trigger
 
 ### Consequences
 
-- **Positive**:
-  - Minimal bundle size (~20KB minified)
-  - No dependency updates needed
-  - No security vulnerabilities from deps
-- **Negative**:
-  - More code to write and maintain
-  - Must implement utilities ourselves
+- **Positive**: Highlighting always instant, parsing doesn't block typing
+- **Negative**: Brief delay before completions available after typing
+
+---
+
+## ADR-009: Context-Aware Completion Provider
+
+**Date**: 2024-01-20  
+**Status**: Accepted
+
+### Context
+
+Auto-complete needs different completions based on cursor context.
+
+### Decision
+
+Detect context by analyzing text before cursor:
+
+- **Member access** (`obj.`): Show object properties/methods
+- **Global context**: Show variables, functions, keywords
+- **Import path**: Show module suggestions
+
+### Consequences
+
+- **Positive**: Relevant completions, better UX
+- **Negative**: Context detection can miss edge cases
+
+---
+
+## ADR-010: Incremental Tokenization with State Caching
+
+**Date**: 2024-01-20  
+**Status**: Accepted
+
+### Context
+
+Full re-tokenization on every change is expensive for large files.
+
+### Decision
+
+Cache `{tokens, endState}` per line. On change:
+
+1. Invalidate from changed line
+2. Re-tokenize until `endState` matches cached state
+3. Stop when state stabilizes
+
+### Consequences
+
+- **Positive**: Only changed region re-tokenized
+- **Negative**: Cache memory usage, invalidation complexity
 
 ---
 
 ## Decision Summary
 
-| ADR | Decision                  | Key Rationale                           |
-| --- | ------------------------- | --------------------------------------- |
-| 001 | EditContext + Fallback    | Best architecture with browser coverage |
-| 002 | Strategy Pattern          | Clean separation, testability           |
-| 003 | Array of Lines            | Balance of simplicity and performance   |
-| 004 | Simple Regex Tokenizer    | Zero dependencies, good enough          |
-| 005 | Event-Based Communication | Loose coupling                          |
-| 006 | CSS Variables             | Runtime theming, simple                 |
-| 007 | No External Dependencies  | Minimal bundle, no supply chain risk    |
+| ADR | Decision                    | Key Rationale                           |
+| --- | --------------------------- | --------------------------------------- |
+| 001 | EditContext + Fallback      | Best architecture with browser coverage |
+| 002 | Strategy Pattern            | Clean separation, testability           |
+| 003 | Array of Lines              | Balance of simplicity and performance   |
+| 004 | Monarch-Style Tokenizer     | Multi-line support, no WASM dependency  |
+| 005 | Separate Tokenizer/Language | Sync highlighting, async intelligence   |
+| 006 | Recursive Descent Parser    | Full control, good error recovery       |
+| 007 | Scope Tree                  | Correct variable resolution             |
+| 008 | Debounced Analysis          | Responsive UI, efficient parsing        |
+| 009 | Context-Aware Completions   | Relevant suggestions                    |
+| 010 | Incremental Tokenization    | Performance for large files             |

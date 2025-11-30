@@ -22,11 +22,6 @@
 │  ┌─────────────────────────────┐    ┌─────────────────────────────┐        │
 │  │    EditContextHandler       │ OR │     TextareaHandler         │        │
 │  │    (Chrome/Edge 121+)       │    │     (All Browsers)          │        │
-│  │                             │    │                             │        │
-│  │  • textupdate event         │    │  • Hidden textarea (1×1px)  │        │
-│  │  • compositionstart/end     │    │  • input event              │        │
-│  │  • characterboundsupdate    │    │  • compositionstart/end     │        │
-│  │  • No DOM manipulation      │    │  • Sync with model          │        │
 │  └──────────────┬──────────────┘    └──────────────┬──────────────┘        │
 └─────────────────┼───────────────────────────────────┼───────────────────────┘
                   └─────────────────┬─────────────────┘
@@ -38,42 +33,60 @@
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐             │
 │  │    Document     │  │    Selection    │  │   Undo Stack    │             │
 │  │     Model       │  │     State       │  │                 │             │
-│  │                 │  │                 │  │  • undoStack[]  │             │
-│  │  • lines[]      │  │  • start        │  │  • redoStack[]  │             │
-│  │  • version      │  │  • end          │  │  • Transaction  │             │
-│  │  • getText()    │  │                 │  │                 │             │
-│  │  • replaceRange │  │                 │  │                 │             │
+│  │  • lines[]      │  │  • start        │  │  • undoStack[]  │             │
+│  │  • version      │  │  • end          │  │  • redoStack[]  │             │
 │  └────────┬────────┘  └────────┬────────┘  └─────────────────┘             │
 │           │                    │                                            │
 │           │ 'change' event     │ 'selectionChange' event                   │
 └───────────┼────────────────────┼────────────────────────────────────────────┘
             │                    │
             ▼                    ▼
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                         Processing Layer                                       │
+│                                                                               │
+│  ┌─────────────────────────────┐    ┌─────────────────────────────────────┐  │
+│  │        Tokenizer            │    │        Language Service             │  │
+│  │   (Syntax Highlighting)     │    │     (Code Intelligence)             │  │
+│  │                             │    │                                     │  │
+│  │  • Monarch-style grammar    │    │  ┌───────────────────────────────┐  │  │
+│  │  • State machine            │    │  │     Parser (AST Generator)   │  │  │
+│  │  • Incremental updates      │    │  │     • Recursive descent      │  │  │
+│  │  • Sync per keystroke       │    │  │     • Error recovery         │  │  │
+│  │                             │    │  └─────────────┬─────────────────┘  │  │
+│  │  Grammar:                   │    │                │                    │  │
+│  │  • root state               │    │  ┌─────────────▼─────────────────┐  │  │
+│  │  • comment state            │    │  │       Symbol Table            │  │  │
+│  │  • string states            │    │  │     • Scope hierarchy         │  │  │
+│  │  • template state           │    │  │     • Type inference          │  │  │
+│  │                             │    │  │     • Member tracking         │  │  │
+│  └─────────────────────────────┘    │  └─────────────┬─────────────────┘  │  │
+│               │                     │                │                    │  │
+│               │                     │  ┌─────────────▼─────────────────┐  │  │
+│               │                     │  │    Completion Provider        │  │  │
+│               │                     │  │     • Member completions      │  │  │
+│               │                     │  │     • Global completions      │  │  │
+│               │                     │  │     • Keyword completions     │  │  │
+│               │                     │  └───────────────────────────────┘  │  │
+│               │                     │                                     │  │
+│               │                     │  • Async/Debounced (150ms)          │  │
+│               │                     │  • Future: Web Worker               │  │
+│               │                     └─────────────────────────────────────┘  │
+└───────────────┼───────────────────────────────────────┼───────────────────────┘
+                │                                       │
+                └───────────────────┬───────────────────┘
+                                    │
+                                    ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              EditorView                                      │
 │                                                                              │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
-│  │   Gutter    │  │    Lines    │  │   Cursor    │  │  Selection  │        │
-│  │  (numbers)  │  │  (content)  │  │  (blink)    │  │  (highlight)│        │
-│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
-│         │                │                │                │                │
-│         └────────────────┴────────────────┴────────────────┘                │
+│  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────────┐ │
+│  │  Gutter   │ │   Lines   │ │  Cursor   │ │ Selection │ │ AutoComplete  │ │
+│  │ (numbers) │ │ (content) │ │  (blink)  │ │(highlight)│ │   (popup)     │ │
+│  └───────────┘ └───────────┘ └───────────┘ └───────────┘ └───────────────┘ │
+│        │              │              │              │              │        │
+│        └──────────────┴──────────────┴──────────────┴──────────────┘        │
 │                                    │                                        │
 │                          DOM Rendering                                      │
-└─────────────────────────────────────────────────────────────────────────────┘
-            │
-            ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              Tokenizer                                       │
-│                                                                              │
-│  ┌─────────────────────────────────────────────────────────────────┐       │
-│  │  JavaScript Grammar                                              │       │
-│  │  • Keywords: const, let, function, class, return, ...           │       │
-│  │  • Strings: "...", '...', `...`                                 │       │
-│  │  • Numbers: 123, 0xFF, 1.5e10                                   │       │
-│  │  • Comments: //, /* */                                          │       │
-│  │  • Operators: +, -, *, /, =, ==, ===, ...                       │       │
-│  └─────────────────────────────────────────────────────────────────┘       │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -84,7 +97,7 @@
 - **Location**: `src/model/Document.js`
 - **Purpose**: Stores and manipulates text content as an array of lines
 - **Dependencies**: None (standalone)
-- **Dependents**: Editor, InputHandlers, EditorView
+- **Dependents**: Editor, InputHandlers, EditorView, LanguageService
 
 #### Key Methods
 
@@ -96,102 +109,138 @@
 | `positionToOffset()` | Convert line/column to offset | `line: number, column: number`                            | `number`         |
 | `getLine()`          | Get specific line content     | `lineIndex: number`                                       | `string`         |
 
-#### Usage Example
-
-```javascript
-const doc = new Document('Hello\nWorld');
-doc.replaceRange(5, 5, ' Beautiful'); // Insert at position 5
-console.log(doc.getText()); // "Hello Beautiful\nWorld"
-
-const pos = doc.offsetToPosition(7); // {line: 0, column: 7}
-```
-
----
-
-### EditContextHandler (input/EditContextHandler.js)
-
-- **Location**: `src/input/EditContextHandler.js`
-- **Purpose**: Handles text input via EditContext API (Chrome 121+)
-- **Dependencies**: Editor, Document
-- **Dependents**: InputHandler
-
-#### Key Methods
-
-| Method                           | Purpose                        | Parameters                          | Returns   |
-| -------------------------------- | ------------------------------ | ----------------------------------- | --------- |
-| `_handleTextUpdate()`            | Process text input from OS     | `event: TextUpdateEvent`            | `void`    |
-| `_handleCharacterBoundsUpdate()` | Provide char positions for IME | `event: CharacterBoundsUpdateEvent` | `void`    |
-| `_syncEditContextText()`         | Sync document to EditContext   | None                                | `void`    |
-| `focus()`                        | Focus the editor               | None                                | `void`    |
-| `isComposing()`                  | Check if IME is active         | None                                | `boolean` |
-
-#### Usage Example
-
-```javascript
-// Automatically selected by InputHandler when supported
-const handler = new EditContextHandler(element, editor);
-
-// EditContext events are handled internally
-// textupdate → document.replaceRange()
-// characterboundsupdate → view.getCharacterRect()
-```
-
----
-
-### TextareaHandler (input/TextareaHandler.js)
-
-- **Location**: `src/input/TextareaHandler.js`
-- **Purpose**: Fallback input handler using hidden textarea
-- **Dependencies**: Editor, Document
-- **Dependents**: InputHandler
-
-#### Key Methods
-
-| Method                    | Purpose                       | Parameters                | Returns |
-| ------------------------- | ----------------------------- | ------------------------- | ------- |
-| `_handleInput()`          | Process textarea input event  | `event: InputEvent`       | `void`  |
-| `_handleCompositionEnd()` | Handle IME composition finish | `event: CompositionEvent` | `void`  |
-| `updatePosition()`        | Move textarea near cursor     | `cursorRect: DOMRect`     | `void`  |
-| `focus()`                 | Focus the hidden textarea     | None                      | `void`  |
-
----
-
-### EditorView (view/EditorView.js)
-
-- **Location**: `src/view/EditorView.js`
-- **Purpose**: Renders document content, cursor, and selection to DOM
-- **Dependencies**: Editor, Document, Tokenizer
-- **Dependents**: Editor
-
-#### Key Methods
-
-| Method                   | Purpose                                   | Parameters         | Returns          |
-| ------------------------ | ----------------------------------------- | ------------------ | ---------------- |
-| `_renderLines()`         | Render all lines with syntax highlighting | None               | `void`           |
-| `_renderCursor()`        | Position and render cursor                | None               | `void`           |
-| `_renderSelection()`     | Render selection rectangles               | None               | `void`           |
-| `getPositionFromPoint()` | Convert screen coords to position         | `clientX, clientY` | `{line, column}` |
-| `getCharacterRect()`     | Get bounding rect for character           | `offset: number`   | `DOMRect`        |
-
 ---
 
 ### Tokenizer (tokenizer/Tokenizer.js)
 
 - **Location**: `src/tokenizer/Tokenizer.js`
-- **Purpose**: Tokenizes code for syntax highlighting
-- **Dependencies**: None
-- **Dependents**: EditorView
+- **Purpose**: Monarch-style tokenizer with state machine for syntax highlighting
+- **Dependencies**: Grammar definitions
+- **Dependents**: EditorView, LanguageService
 
-#### Token Types
+#### Key Methods
 
-| Type       | Example             | Color (Dark Theme) |
-| ---------- | ------------------- | ------------------ |
-| `keyword`  | `const`, `function` | `#569cd6`          |
-| `string`   | `"hello"`           | `#ce9178`          |
-| `number`   | `42`, `3.14`        | `#b5cea8`          |
-| `comment`  | `// note`           | `#6a9955`          |
-| `function` | `myFunc(`           | `#dcdcaa`          |
-| `class`    | `MyClass`           | `#4ec9b0`          |
+| Method             | Purpose                         | Parameters                   | Returns                |
+| ------------------ | ------------------------------- | ---------------------------- | ---------------------- |
+| `tokenizeLine()`   | Tokenize single line with state | `line: string, state: State` | `{tokens[], endState}` |
+| `invalidateFrom()` | Clear cache from line index     | `lineIndex: number`          | `void`                 |
+
+#### State Machine States
+
+| State                 | Purpose                    | Transitions                 |
+| --------------------- | -------------------------- | --------------------------- |
+| `root`                | Default state              | → comment, string, template |
+| `comment`             | Multi-line comment /\* \*/ | → root (@pop)               |
+| `string_double`       | Double-quoted string       | → root (@pop)               |
+| `string_single`       | Single-quoted string       | → root (@pop)               |
+| `string_template`     | Template literal ``        | → template_expression, root |
+| `template_expression` | ${...} inside template     | → string_template (@pop)    |
+
+---
+
+### Parser (language/Parser.js)
+
+- **Location**: `src/language/Parser.js`
+- **Purpose**: Recursive descent parser generating AST from tokens
+- **Dependencies**: Tokenizer, ASTNodes
+- **Dependents**: LanguageService, SymbolTable
+
+#### Key Methods
+
+| Method               | Purpose                | Parameters        | Returns           |
+| -------------------- | ---------------------- | ----------------- | ----------------- |
+| `parse()`            | Parse tokens into AST  | `tokens: Token[]` | `{ast, errors[]}` |
+| `_parseStatement()`  | Parse single statement | None              | `ASTNode`         |
+| `_parseExpression()` | Parse expression       | None              | `ASTNode`         |
+
+#### Supported AST Nodes
+
+| Node Type             | Description              | Key Properties               |
+| --------------------- | ------------------------ | ---------------------------- |
+| `Program`             | Root node                | `body: Statement[]`          |
+| `VariableDeclaration` | const/let/var            | `kind, declarations[]`       |
+| `FunctionDeclaration` | function declaration     | `id, params[], body`         |
+| `ClassDeclaration`    | class declaration        | `id, superClass, body`       |
+| `ObjectExpression`    | Object literal {}        | `properties[]`               |
+| `MemberExpression`    | Property access obj.prop | `object, property, computed` |
+| `CallExpression`      | Function call fn()       | `callee, arguments[]`        |
+
+---
+
+### SymbolTable (language/SymbolTable.js)
+
+- **Location**: `src/language/SymbolTable.js`
+- **Purpose**: Tracks declared symbols with scope hierarchy
+- **Dependencies**: ASTNodes
+- **Dependents**: CompletionProvider
+
+#### Key Methods
+
+| Method           | Purpose                        | Parameters               | Returns        |
+| ---------------- | ------------------------------ | ------------------------ | -------------- |
+| `enterScope()`   | Create and enter new scope     | `type: string`           | `Scope`        |
+| `exitScope()`    | Return to parent scope         | None                     | `void`         |
+| `define()`       | Define symbol in current scope | `name, kind, type, node` | `Symbol`       |
+| `resolve()`      | Find symbol in scope chain     | `name: string`           | `Symbol\|null` |
+| `buildFromAST()` | Build table from AST           | `ast: ASTNode`           | `this`         |
+
+#### Symbol Kinds
+
+| Kind        | Description          | Example              |
+| ----------- | -------------------- | -------------------- |
+| `variable`  | Variable declaration | `const x = 1`        |
+| `function`  | Function declaration | `function foo() {}`  |
+| `class`     | Class declaration    | `class MyClass {}`   |
+| `parameter` | Function parameter   | `function(param) {}` |
+| `property`  | Object property      | `{ prop: value }`    |
+| `method`    | Object/class method  | `{ fn() {} }`        |
+
+---
+
+### LanguageService (language/LanguageService.js)
+
+- **Location**: `src/language/LanguageService.js`
+- **Purpose**: Coordinates parsing, symbol table, and completion providers
+- **Dependencies**: Document, Tokenizer, Parser, SymbolTable, Providers
+- **Dependents**: Editor
+
+#### Key Methods
+
+| Method             | Purpose                   | Parameters       | Returns        |
+| ------------------ | ------------------------- | ---------------- | -------------- |
+| `getCompletions()` | Get completions at offset | `offset: number` | `Completion[]` |
+| `getDiagnostics()` | Get parse errors/warnings | None             | `Diagnostic[]` |
+| `getSymbolAt()`    | Get symbol at offset      | `offset: number` | `Symbol\|null` |
+| `getAST()`         | Get current AST           | None             | `ASTNode`      |
+
+---
+
+### CompletionProvider (language/providers/CompletionProvider.js)
+
+- **Location**: `src/language/providers/CompletionProvider.js`
+- **Purpose**: Generates auto-complete suggestions based on context
+- **Dependencies**: SymbolTable
+- **Dependents**: LanguageService
+
+#### Completion Context Types
+
+| Context Type | Trigger          | Example           | Completions                    |
+| ------------ | ---------------- | ----------------- | ------------------------------ |
+| `member`     | `.` after object | `user.`           | Object properties/methods      |
+| `global`     | Any identifier   | `con`             | Variables, functions, keywords |
+| `import`     | In import string | `import x from '` | Module paths                   |
+
+#### Completion Item Structure
+
+```javascript
+{
+  label: string,        // Display text
+  kind: string,         // 'function' | 'variable' | 'keyword' | ...
+  detail: string,       // Additional info (type)
+  insertText: string,   // Text to insert
+  sortText: string      // Sort order
+}
+```
 
 ---
 
@@ -205,8 +254,7 @@ User presses 'a'
       ▼
 ┌─────────────────────────────────┐
 │ EditContext receives textupdate │
-│ OR                              │
-│ Textarea receives input event   │
+│ OR Textarea receives input      │
 └────────────────┬────────────────┘
                  │
                  ▼
@@ -218,58 +266,71 @@ User presses 'a'
 │ )                               │
 └────────────────┬────────────────┘
                  │
-                 ▼
-┌─────────────────────────────────┐
-│ Document emits 'change' event   │
-│ • Undo stack updated            │
-│ • Selection updated             │
-└────────────────┬────────────────┘
-                 │
-                 ▼
-┌─────────────────────────────────┐
-│ EditorView._render()            │
-│ • Re-tokenize changed lines     │
-│ • Update DOM                    │
-│ • Reposition cursor             │
-└─────────────────────────────────┘
+    ┌────────────┴────────────┐
+    │                         │
+    ▼                         ▼
+┌─────────────┐      ┌─────────────────────┐
+│  Tokenizer  │      │  Language Service   │
+│ (immediate) │      │ (debounced 150ms)   │
+└──────┬──────┘      └──────────┬──────────┘
+       │                        │
+       ▼                        ▼
+┌─────────────┐      ┌─────────────────────┐
+│   Tokens    │      │   AST + Symbols     │
+└──────┬──────┘      └──────────┬──────────┘
+       │                        │
+       └────────────┬───────────┘
+                    │
+                    ▼
+           ┌─────────────────┐
+           │   EditorView    │
+           │   _render()     │
+           └─────────────────┘
 ```
 
-### 2. IME Composition (Korean/Japanese/Chinese)
+### 2. Auto-Complete Flow
 
 ```
-User starts IME input
+User types "user."
       │
       ▼
 ┌─────────────────────────────────┐
-│ compositionstart event          │
-│ • isComposing = true            │
-│ • Block immediate updates       │
-└────────────────┬────────────────┘
-                 │
-      (User types phonetic input)
-                 │
-                 ▼
-┌─────────────────────────────────┐
-│ textformatupdate event          │
-│ • Get composition ranges        │
-│ • Render underline decorations  │
+│ AutoComplete._scheduleUpdate()  │
+│ (debounced 100ms)               │
 └────────────────┬────────────────┘
                  │
                  ▼
 ┌─────────────────────────────────┐
-│ characterboundsupdate event     │
-│ • Calculate char positions      │
-│ • Report to OS for IME window   │
+│ editor.getCompletions()         │
 └────────────────┬────────────────┘
-                 │
-      (User selects final character)
                  │
                  ▼
 ┌─────────────────────────────────┐
-│ compositionend event            │
-│ • isComposing = false           │
-│ • Commit final text to document │
-│ • Clear composition decorations │
+│ CompletionProvider              │
+│   ._getCompletionContext()      │
+│   → { type: 'member',           │
+│       objectName: 'user',       │
+│       prefix: '' }              │
+└────────────────┬────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────┐
+│ symbolTable.resolve('user')     │
+│   → Symbol { members: [...] }   │
+└────────────────┬────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────┐
+│ Return completions:             │
+│ [ { label: 'name', ... },       │
+│   { label: 'age', ... },        │
+│   { label: 'getInfo', ... } ]   │
+└────────────────┬────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────┐
+│ AutoComplete._render()          │
+│ AutoComplete.show()             │
 └─────────────────────────────────┘
 ```
 
@@ -282,41 +343,31 @@ User starts IME input
 ```javascript
 {
   // Document state
-  document: {
+  _document: {
     _lines: ['line 1', 'line 2', ...],
     _version: 42
   },
 
   // Selection state
   _selection: {
-    start: 15,    // Character offset
-    end: 15       // Same as start = cursor, different = selection
+    start: 15,
+    end: 15
   },
 
   // History state
-  _undoStack: [
-    {
-      type: 'replace',
-      startOffset: 10,
-      deletedText: '',
-      insertedText: 'hello',
-      selectionBefore: { start: 10, end: 10 }
-    },
-    // ...more transactions
-  ],
-  _redoStack: []
+  _undoStack: [...],
+  _redoStack: [],
+
+  // Language Service state
+  _languageService: {
+    _ast: { type: 'Program', body: [...] },
+    _symbolTable: {
+      globalScope: { symbols: Map, children: [...] },
+      currentScope: Scope
+    }
+  }
 }
 ```
-
-### State Transitions
-
-| Action           | Before                         | After                                       |
-| ---------------- | ------------------------------ | ------------------------------------------- |
-| Type 'a'         | `selection: {start:5, end:5}`  | `selection: {start:6, end:6}`, doc modified |
-| Select text      | `selection: {start:5, end:5}`  | `selection: {start:5, end:10}`              |
-| Delete selection | `selection: {start:5, end:10}` | `selection: {start:5, end:5}`, doc modified |
-| Undo             | Current state                  | Previous state from undoStack               |
-| Redo             | Current state                  | Next state from redoStack                   |
 
 ---
 
@@ -324,88 +375,50 @@ User starts IME input
 
 ### Adding New Language Support
 
-1. Create grammar file at `src/tokenizer/grammars/[language].js`
-2. Define token patterns:
+1. Create grammar file at `src/tokenizer/grammars/[language].js`:
 
 ```javascript
-// src/tokenizer/grammars/python.js
-export const PYTHON_KEYWORDS = new Set([
-  'def', 'class', 'if', 'else', 'elif', 'for', 'while',
-  'return', 'import', 'from', 'as', 'try', 'except', ...
-]);
-
-export function tokenizePython(line) {
-  // Return array of tokens
-}
+export const PythonGrammar = {
+  name: 'python',
+  keywords: ['def', 'class', 'if', 'else', ...],
+  tokenizer: {
+    root: [...],
+    // states
+  }
+};
 ```
 
-3. Register in Tokenizer:
+2. Register in Tokenizer constructor
+3. Create parser rules if AST support needed
+4. Add completion provider customizations
 
-```javascript
-// In Tokenizer constructor
-if (language === 'python') {
-  this._tokenize = tokenizePython;
-}
-```
+### Adding New Completion Provider
 
-### Adding New Input Handler
-
-1. Create handler at `src/input/[Name]Handler.js`
-2. Implement required interface:
-
-```javascript
-class CustomHandler {
-  constructor(element, editor) {}
-
-  focus() {}
-  isFocused() {
-    return boolean;
-  }
-  isComposing() {
-    return boolean;
-  }
-  getCompositionRanges() {
-    return [];
-  }
-  dispose() {}
-}
-```
-
-3. Add detection logic in `InputHandler.js`
+1. Create provider at `src/language/providers/[Name]Provider.js`
+2. Implement `provideCompletions(document, offset)` method
+3. Register in LanguageService
 
 ---
 
 ## Performance Considerations
 
-### Virtual Rendering (Future Enhancement)
+### Tokenization
 
-Currently renders all lines. For large files:
+- **Incremental**: Only re-tokenize changed lines + affected following lines
+- **State Caching**: Cache end state per line for quick re-tokenization
+- **Sync**: Runs synchronously for immediate highlighting
 
-- Implement viewport-based rendering
-- Only render visible lines + buffer
-- Recycle DOM nodes
+### Parsing
 
-### Tokenization Optimization
+- **Debounced**: 150ms delay after last keystroke
+- **Error Recovery**: Parser continues after errors
+- **Future**: Web Worker for large files
 
-- **Current**: Full line re-tokenization on change
-- **Improvement**: Incremental tokenization
-  - Track dirty lines
-  - Only re-tokenize affected lines
-  - Cache token results
+### Completion
 
-### Event Throttling
-
-```javascript
-// Already implemented for scroll/resize
-this._handleScroll = throttle(this._onScroll.bind(this), 16);
-this._handleResize = debounce(this._onResize.bind(this), 100);
-```
-
-### Memory Management
-
-- Document stores lines as array (not single string)
-- Undo stack has implicit limit (could add explicit max)
-- Disposed handlers clean up event listeners
+- **On-Demand**: Only computed when autocomplete triggered
+- **Cached Symbols**: Symbol table persists between parses
+- **Filtered**: Early filtering by prefix
 
 ---
 
@@ -417,5 +430,3 @@ this._handleResize = debounce(this._onResize.bind(this), 100);
 | Textarea Fallback | ✅     | ✅   | ✅      | ✅     |
 | Clipboard API     | ✅     | ✅   | ✅      | ✅     |
 | IME Support       | ✅     | ✅   | ✅      | ✅     |
-
-The editor automatically detects EditContext support and falls back to hidden textarea for unsupported browsers.
