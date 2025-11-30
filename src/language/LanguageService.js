@@ -7,6 +7,7 @@ import { Tokenizer, TokenizerState } from '../tokenizer/Tokenizer.js';
 import { Parser } from './Parser.js';
 import { SymbolTable } from './SymbolTable.js';
 import { CompletionProvider } from './providers/CompletionProvider.js';
+import { HoverProvider } from './providers/HoverProvider.js';
 
 // ============================================
 // Constants
@@ -31,6 +32,7 @@ export class LanguageService {
   _parser = null;
   _symbolTable = null;
   _completionProvider = null;
+  _hoverProvider = null;
 
   _ast = null;
   _errors = [];
@@ -69,6 +71,9 @@ export class LanguageService {
 
     // Create completion provider
     this._completionProvider = new CompletionProvider(this);
+
+    // Create hover provider
+    this._hoverProvider = new HoverProvider(this);
 
     // Listen to document changes
     this._document.on('change', (change) => this._onDocumentChange(change));
@@ -170,6 +175,19 @@ export class LanguageService {
    */
   getCompletions(offset) {
     return this._completionProvider.provideCompletions(this._document, offset);
+  }
+
+  // ----------------------------------------
+  // Public API - Hover Information
+  // ----------------------------------------
+
+  /**
+   * Get hover information at cursor offset
+   * @param {number} offset - Cursor offset
+   * @returns {HoverInfo|null} - Hover information or null
+   */
+  getHoverInfo(offset) {
+    return this._hoverProvider.provideHover(this._document, offset);
   }
 
   // ----------------------------------------

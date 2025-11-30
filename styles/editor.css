@@ -39,6 +39,13 @@
   --ec-autocomplete-border: #454545;
   --ec-autocomplete-selected: #094771;
   --ec-autocomplete-hover: #2a2d2e;
+
+  /* Hover tooltip colors */
+  --ec-hover-bg: #252526;
+  --ec-hover-border: #454545;
+  --ec-hover-code-bg: #1e1e1e;
+  --ec-hover-text: #cccccc;
+  --ec-hover-code: #9cdcfe;
 }
 
 /* ============================================
@@ -376,6 +383,72 @@
 }
 
 /* ============================================
+   Hover Tooltip
+   ============================================ */
+
+.ec-hover-tooltip {
+  position: absolute;
+  z-index: 1001;
+  min-width: 200px;
+  max-width: 500px;
+  background: var(--ec-hover-bg);
+  border: 1px solid var(--ec-hover-border);
+  border-radius: 3px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+/* Code section (signature) */
+.ec-hover-code {
+  padding: 8px 10px;
+  background: var(--ec-hover-code-bg);
+  color: var(--ec-hover-code);
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-bottom: 1px solid var(--ec-hover-border);
+}
+
+/* Text section (description) */
+.ec-hover-text {
+  padding: 8px 10px;
+  color: var(--ec-hover-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+}
+
+/* If there are multiple text sections */
+.ec-hover-text + .ec-hover-text {
+  padding-top: 0;
+  border-top: none;
+}
+
+/* Markdown section */
+.ec-hover-markdown {
+  padding: 8px 10px;
+  color: var(--ec-hover-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+}
+
+.ec-hover-markdown code {
+  background: var(--ec-hover-code-bg);
+  padding: 2px 4px;
+  border-radius: 2px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+}
+
+/* Last section should not have border */
+.ec-hover-tooltip > div:last-child {
+  border-bottom: none;
+}
+
+/* ============================================
    Hidden Textarea (Fallback Mode)
    ============================================ */
 
@@ -428,6 +501,13 @@
   --ec-autocomplete-border: #c8c8c8;
   --ec-autocomplete-selected: #0060c0;
   --ec-autocomplete-hover: #e8e8e8;
+
+  /* Hover tooltip light theme */
+  --ec-hover-bg: #f3f3f3;
+  --ec-hover-border: #c8c8c8;
+  --ec-hover-code-bg: #ffffff;
+  --ec-hover-text: #333333;
+  --ec-hover-code: #001080;
 }
 
 .ec-editor.ec-theme-light .ec-autocomplete-item.ec-autocomplete-item-selected {
@@ -494,5 +574,8 @@
   .ec-autocomplete {
     max-width: 90vw;
   }
-}
 
+  .ec-hover-tooltip {
+    max-width: 90vw;
+  }
+}

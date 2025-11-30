@@ -7,6 +7,7 @@
  */
 
 import { AutoComplete } from '../features/AutoComplete.js';
+import { HoverTooltip } from '../features/HoverTooltip.js';
 import { InputHandler, isEditContextSupported } from '../input/InputHandler.js';
 import { LanguageService } from '../language/LanguageService.js';
 import { Document } from '../model/Document.js';
@@ -25,6 +26,7 @@ const DEFAULT_OPTIONS = {
   fontSize: 14,
   fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace",
   autoComplete: true,
+  hover: true, // Enable hover tooltips by default
 };
 
 // ============================================
@@ -53,6 +55,7 @@ export class Editor {
   _inputHandler = null;
   _languageService = null;
   _autoComplete = null;
+  _hoverTooltip = null;
   _selection = { start: 0, end: 0 };
   _undoStack = [];
   _redoStack = [];
@@ -107,6 +110,11 @@ export class Editor {
       this._autoComplete = new AutoComplete(this);
     }
 
+    // Create hover tooltip (if enabled)
+    if (this._options.hover) {
+      this._hoverTooltip = new HoverTooltip(this);
+    }
+
     // Track document changes for undo
     this._document.on('change', (change) => this._onDocumentChange(change));
 
@@ -118,6 +126,7 @@ export class Editor {
     // Log input mode
     console.log(`[Editor] Initialized with ${this._inputHandler.getMode()} input`);
     console.log(`[Editor] EditContext supported: ${isEditContextSupported()}`);
+    console.log(`[Editor] Hover enabled: ${this._options.hover}`);
   }
 
   // ----------------------------------------
@@ -303,6 +312,16 @@ export class Editor {
   }
 
   /**
+   * Get hover information at current cursor position
+   * @param {number} [offset] - Optional offset (defaults to cursor position)
+   * @returns {HoverInfo|null}
+   */
+  getHoverInfo(offset) {
+    const targetOffset = offset ?? this._selection.end;
+    return this._languageService.getHoverInfo(targetOffset);
+  }
+
+  /**
    * Get diagnostics (parse errors)
    * @returns {Array} - Diagnostic items
    */
@@ -331,6 +350,20 @@ export class Editor {
    */
   triggerAutoComplete() {
     this._autoComplete?.trigger();
+  }
+
+  /**
+   * Trigger hover tooltip manually
+   */
+  triggerHover() {
+    this._hoverTooltip?.trigger();
+  }
+
+  /**
+   * Hide hover tooltip
+   */
+  hideHover() {
+    this._hoverTooltip?.hide();
   }
 
   // ----------------------------------------
@@ -438,6 +471,7 @@ export class Editor {
   dispose() {
     if (this._disposed) return;
 
+    this._hoverTooltip?.dispose();
     this._autoComplete?.dispose();
     this._languageService?.dispose();
     this._inputHandler?.dispose();

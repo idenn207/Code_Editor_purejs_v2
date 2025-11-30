@@ -26,13 +26,15 @@ export { AST, ASTNode, ASTVisitor, NodeType } from './language/ASTNodes.js';
 export { LanguageService } from './language/LanguageService.js';
 export { ParseError, Parser } from './language/Parser.js';
 export { CompletionItemKind, CompletionProvider } from './language/providers/CompletionProvider.js';
+export { HoverInfo, HoverProvider } from './language/providers/HoverProvider.js';
 export { Scope, Symbol, SymbolKind, SymbolTable } from './language/SymbolTable.js';
 
 // Features
 export { AutoComplete } from './features/AutoComplete.js';
+export { HoverTooltip } from './features/HoverTooltip.js';
 
 // Version
-export const VERSION = '1.1.0';
+export const VERSION = '1.2.0';
 
 // Feature detection helper
 export function checkBrowserSupport() {
