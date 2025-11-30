@@ -42,7 +42,6 @@ export class EditorView {
   // Metrics cache
   _charWidth = 0;
   _lineHeight = 0;
-  _padding = 0;
 
   // ----------------------------------------
   // Constructor
@@ -145,7 +144,6 @@ export class EditorView {
     document.body.appendChild(measureEl);
     this._charWidth = measureEl.getBoundingClientRect().width;
     this._lineHeight = this._options.lineHeight;
-    this._padding = this._options.padding;
     document.body.removeChild(measureEl);
 
     console.log(`[EditorView] Character metrics: ${this._charWidth.toFixed(2)}px × ${this._lineHeight}px`);
@@ -269,8 +267,8 @@ export class EditorView {
     const pos = doc.offsetToPosition(end);
 
     // FIX: Calculate position relative to lines container (inside padding)
-    const top = pos.line * this._lineHeight + this._padding;
-    const left = pos.column * this._charWidth + this._padding;
+    const top = pos.line * this._lineHeight + this._options.padding;
+    const left = pos.column * this._charWidth + this._options.padding;
 
     // FIX Issue 2: Reset all cursor styles to prevent duplicates
     this._cursorElement.style.top = `${top}px`;
@@ -354,7 +352,7 @@ export class EditorView {
     const contentRect = this._contentElement.getBoundingClientRect();
 
     const x = clientX - contentRect.left - this._options.padding;
-    const y = clientY - contentRect.top - this._options.padding + this._wrapper.scrollTop;
+    const y = clientY - contentRect.top - this._options.padding;
 
     const line = Math.max(0, Math.min(Math.floor(y / this._lineHeight), this._editor.document.getLineCount() - 1));
 
@@ -376,7 +374,7 @@ export class EditorView {
     const contentRect = this._contentElement.getBoundingClientRect();
 
     const x = contentRect.left + this._options.padding + pos.column * this._charWidth;
-    const y = contentRect.top + this._options.padding + pos.line * this._lineHeight - this._wrapper.scrollTop;
+    const y = contentRect.top + this._options.padding + pos.line * this._lineHeight;
 
     return new DOMRect(x, y, this._charWidth, this._lineHeight);
   }
