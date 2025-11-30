@@ -42,6 +42,7 @@ export class EditorView {
   // Metrics cache
   _charWidth = 0;
   _lineHeight = 0;
+  _padding = 0;
 
   // ----------------------------------------
   // Constructor
@@ -144,6 +145,7 @@ export class EditorView {
     document.body.appendChild(measureEl);
     this._charWidth = measureEl.getBoundingClientRect().width;
     this._lineHeight = this._options.lineHeight;
+    this._padding = this._options.padding;
     document.body.removeChild(measureEl);
 
     console.log(`[EditorView] Character metrics: ${this._charWidth.toFixed(2)}px × ${this._lineHeight}px`);
@@ -267,8 +269,8 @@ export class EditorView {
     const pos = doc.offsetToPosition(end);
 
     // FIX: Calculate position relative to lines container (inside padding)
-    const top = pos.line * this._lineHeight;
-    const left = pos.column * this._charWidth;
+    const top = pos.line * this._lineHeight + this._padding;
+    const left = pos.column * this._charWidth + this._padding;
 
     // FIX Issue 2: Reset all cursor styles to prevent duplicates
     this._cursorElement.style.top = `${top}px`;
@@ -449,3 +451,4 @@ export class EditorView {
     this._container.innerHTML = '';
   }
 }
+

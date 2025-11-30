@@ -114,6 +114,7 @@
   white-space: pre;
   z-index: 2;
   min-height: 100%; /* FIX Issue 3: Ensure lines container fills available space */
+  caret-color: transparent;
 }
 
 .ec-line {
@@ -494,3 +495,4 @@
     max-width: 90vw;
   }
 }
+
