@@ -5,10 +5,11 @@
  */
 
 /* ============================================
-   Base Editor Styles
+   CSS Variables (Theming)
    ============================================ */
 
-.ec-editor {
+:root {
+  /* Editor colors */
   --ec-bg: #1e1e1e;
   --ec-fg: #d4d4d4;
   --ec-gutter-bg: #1e1e1e;
@@ -16,19 +17,35 @@
   --ec-cursor-color: #aeafad;
   --ec-selection-bg: rgba(38, 79, 120, 0.6);
   --ec-line-highlight: rgba(255, 255, 255, 0.05);
+  --ec-border: #333;
 
   /* Syntax colors */
   --ec-keyword: #569cd6;
+  --ec-keyword-literal: #569cd6;
   --ec-string: #ce9178;
+  --ec-string-template: #ce9178;
+  --ec-string-escape: #d7ba7d;
   --ec-number: #b5cea8;
   --ec-comment: #6a9955;
   --ec-operator: #d4d4d4;
-  --ec-punctuation: #d4d4d4;
+  --ec-delimiter: #d4d4d4;
   --ec-function: #dcdcaa;
   --ec-class: #4ec9b0;
   --ec-identifier: #9cdcfe;
   --ec-property: #9cdcfe;
 
+  /* Auto-complete colors */
+  --ec-autocomplete-bg: #252526;
+  --ec-autocomplete-border: #454545;
+  --ec-autocomplete-selected: #094771;
+  --ec-autocomplete-hover: #2a2d2e;
+}
+
+/* ============================================
+   Base Editor Styles
+   ============================================ */
+
+.ec-editor {
   position: relative;
   width: 100%;
   height: 100%;
@@ -65,7 +82,7 @@
   text-align: right;
   padding-right: 10px;
   user-select: none;
-  border-right: 1px solid #333;
+  border-right: 1px solid var(--ec-border);
 }
 
 .ec-gutter-line {
@@ -79,13 +96,10 @@
 .ec-content {
   flex: 1;
   position: relative;
-  /* overflow: auto; */
   overflow: hidden;
-  /* outline: none; */
   cursor: text;
 }
 
-/* Make content focusable */
 .ec-content:focus {
   outline: none;
 }
@@ -201,11 +215,30 @@
   color: var(--ec-keyword);
 }
 
+.ec-token-keyword\.literal {
+  color: var(--ec-keyword-literal);
+}
+
 .ec-token-string {
   color: var(--ec-string);
 }
 
-.ec-token-number {
+.ec-token-string\.template {
+  color: var(--ec-string-template);
+}
+
+.ec-token-string\.escape {
+  color: var(--ec-string-escape);
+}
+
+.ec-token-string\.invalid {
+  color: var(--ec-string);
+  text-decoration: underline wavy red;
+}
+
+.ec-token-number,
+.ec-token-number\.float,
+.ec-token-number\.hex {
   color: var(--ec-number);
 }
 
@@ -218,8 +251,9 @@
   color: var(--ec-operator);
 }
 
-.ec-token-punctuation {
-  color: var(--ec-punctuation);
+.ec-token-delimiter,
+.ec-token-delimiter\.bracket {
+  color: var(--ec-delimiter);
 }
 
 .ec-token-function {
@@ -247,6 +281,85 @@
 }
 
 /* ============================================
+   Auto-Complete
+   ============================================ */
+
+.ec-autocomplete {
+  position: absolute;
+  z-index: 1000;
+  min-width: 200px;
+  max-width: 400px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--ec-autocomplete-bg);
+  border: 1px solid var(--ec-autocomplete-border);
+  border-radius: 3px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.ec-autocomplete-item {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.ec-autocomplete-item:hover {
+  background: var(--ec-autocomplete-hover);
+}
+
+.ec-autocomplete-item.selected {
+  background: var(--ec-autocomplete-selected);
+}
+
+.ec-autocomplete-icon {
+  width: 16px;
+  margin-right: 6px;
+  text-align: center;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.ec-autocomplete-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ec-autocomplete-detail {
+  margin-left: 10px;
+  opacity: 0.6;
+  font-size: 12px;
+}
+
+/* Auto-complete icon colors */
+.ec-autocomplete-icon-function {
+  color: #dcdcaa;
+}
+.ec-autocomplete-icon-method {
+  color: #dcdcaa;
+}
+.ec-autocomplete-icon-class {
+  color: #4ec9b0;
+}
+.ec-autocomplete-icon-variable {
+  color: #9cdcfe;
+}
+.ec-autocomplete-icon-property {
+  color: #9cdcfe;
+}
+.ec-autocomplete-icon-keyword {
+  color: #569cd6;
+}
+.ec-autocomplete-icon-snippet {
+  color: #ce9178;
+}
+
+/* ============================================
    Hidden Textarea (Fallback Mode)
    ============================================ */
 
@@ -269,7 +382,7 @@
 }
 
 /* ============================================
-   Light Theme (Optional)
+   Light Theme
    ============================================ */
 
 .ec-editor.ec-theme-light {
@@ -279,17 +392,30 @@
   --ec-gutter-fg: #999999;
   --ec-cursor-color: #000000;
   --ec-selection-bg: rgba(173, 214, 255, 0.6);
+  --ec-border: #e0e0e0;
 
   --ec-keyword: #0000ff;
+  --ec-keyword-literal: #0000ff;
   --ec-string: #a31515;
+  --ec-string-template: #a31515;
+  --ec-string-escape: #ee0000;
   --ec-number: #098658;
   --ec-comment: #008000;
   --ec-operator: #333333;
-  --ec-punctuation: #333333;
+  --ec-delimiter: #333333;
   --ec-function: #795e26;
   --ec-class: #267f99;
   --ec-identifier: #001080;
   --ec-property: #001080;
+
+  --ec-autocomplete-bg: #f3f3f3;
+  --ec-autocomplete-border: #c8c8c8;
+  --ec-autocomplete-selected: #0060c0;
+  --ec-autocomplete-hover: #e8e8e8;
+}
+
+.ec-editor.ec-theme-light .ec-autocomplete-item.selected {
+  color: white;
 }
 
 /* ============================================
@@ -328,6 +454,18 @@
 }
 
 /* ============================================
+   Error Highlighting
+   ============================================ */
+
+.ec-error-underline {
+  text-decoration: underline wavy #f44747;
+}
+
+.ec-warning-underline {
+  text-decoration: underline wavy #cca700;
+}
+
+/* ============================================
    Responsive
    ============================================ */
 
@@ -335,5 +473,9 @@
   .ec-gutter {
     min-width: 35px;
     font-size: 12px;
+  }
+
+  .ec-autocomplete {
+    max-width: 90vw;
   }
 }

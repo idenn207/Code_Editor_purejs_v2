@@ -3,16 +3,36 @@
  * @module editcontext-editor
  */
 
+// Core
 export { Editor } from './core/Editor.js';
-export { EditContextHandler } from './input/EditContextHandler.js';
-export { InputHandler, InputMode, isEditContextSupported } from './input/InputHandler.js';
-export { TextareaHandler } from './input/TextareaHandler.js';
+
+// Model
 export { Document } from './model/Document.js';
-export { Tokenizer, TokenType } from './tokenizer/Tokenizer.js';
+
+// Input
+export { EditContextHandler, isEditContextSupported } from './input/EditContextHandler.js';
+export { InputHandler, InputMode } from './input/InputHandler.js';
+export { TextareaHandler } from './input/TextareaHandler.js';
+
+// View
 export { EditorView } from './view/EditorView.js';
 
+// Tokenizer
+export { JavaScriptGrammar } from './tokenizer/grammars/javascript.js';
+export { Tokenizer, TokenizerState, TokenType } from './tokenizer/Tokenizer.js';
+
+// Language Service
+export { AST, ASTNode, ASTVisitor, NodeType } from './language/ASTNodes.js';
+export { LanguageService } from './language/LanguageService.js';
+export { ParseError, Parser } from './language/Parser.js';
+export { CompletionItemKind, CompletionProvider } from './language/providers/CompletionProvider.js';
+export { Scope, Symbol, SymbolKind, SymbolTable } from './language/SymbolTable.js';
+
+// Features
+export { AutoComplete } from './features/AutoComplete.js';
+
 // Version
-export const VERSION = '1.0.0';
+export const VERSION = '1.1.0';
 
 // Feature detection helper
 export function checkBrowserSupport() {
@@ -22,3 +42,7 @@ export function checkBrowserSupport() {
     selection: 'getSelection' in window,
   };
 }
+
+// Default export
+import { Editor } from './core/Editor.js';
+export default Editor;

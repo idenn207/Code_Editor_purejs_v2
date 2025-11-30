@@ -2,19 +2,19 @@
 
 A lightweight, modern code editor built with the [EditContext API](https://developer.mozilla.org/en-US/docs/Web/API/EditContext_API) — the new web standard for building custom text editors.
 
-![Demo Screenshot](https://via.placeholder.com/800x400?text=EditContext+Code+Editor)
-
 ## ✨ Features
 
 - 🚀 **Modern Input Handling** — Uses EditContext API for clean input/rendering separation
 - 🔄 **Automatic Fallback** — Hidden textarea for unsupported browsers
 - 🌏 **IME Support** — Full Korean, Japanese, Chinese input with composition styling
-- 🎨 **Syntax Highlighting** — JavaScript tokenizer with VS Code-like colors
+- 🎨 **Syntax Highlighting** — Monarch-style tokenizer with multi-line support
+- 💡 **Auto-Complete** — Context-aware completions with symbol table
+- 📝 **Code Intelligence** — Recursive descent parser, AST, symbol tracking
 - 🌓 **Theming** — Dark (default) and light themes via CSS variables
 - ⌨️ **Keyboard Shortcuts** — All standard editor shortcuts
 - 📋 **Clipboard** — Copy, cut, paste support
 - ↩️ **Undo/Redo** — Transaction-based history
-- 📦 **Zero Dependencies** — Pure vanilla JavaScript
+- 📦 **Zero Dependencies** — Pure vanilla JavaScript (~30KB)
 
 ## 🌐 Browser Support
 
@@ -49,6 +49,9 @@ A lightweight, modern code editor built with the [EditContext API](https://devel
     value: 'const hello = "world";',
     language: 'javascript',
   });
+
+  // Auto-complete is enabled by default!
+  // Type "console." or any variable name to see suggestions
 </script>
 ```
 
@@ -64,6 +67,7 @@ new Editor(container, {
   lineHeight: 20, // Line height in pixels
   tabSize: 2, // Spaces per tab
   readOnly: false, // Disable editing
+  autoComplete: true, // Enable auto-complete
 });
 ```
 
@@ -81,6 +85,9 @@ new Editor(container, {
 | `focus()`                  | Focus the editor             |
 | `undo()`                   | Undo last change             |
 | `redo()`                   | Redo last undone change      |
+| `getCompletions()`         | Get completions at cursor    |
+| `getDiagnostics()`         | Get parse errors             |
+| `triggerAutoComplete()`    | Manually show auto-complete  |
 | `dispose()`                | Clean up resources           |
 
 ### Events
@@ -94,26 +101,33 @@ editor.on('selectionChange', (selection) => {
   console.log('Cursor moved:', selection);
 });
 
+editor.on('analysisComplete', ({ ast, errors }) => {
+  console.log('Symbols:', editor.languageService.getAllSymbols());
+});
+
 editor.on('focus', () => console.log('Focused'));
 editor.on('blur', () => console.log('Blurred'));
-editor.on('compositionStart', () => console.log('IME started'));
-editor.on('compositionEnd', () => console.log('IME ended'));
+editor.on('autocompleteShow', () => console.log('Auto-complete shown'));
+editor.on('completionAccepted', ({ item }) => console.log('Accepted:', item));
 ```
 
 ## ⌨️ Keyboard Shortcuts
 
-| Shortcut                  | Action             |
-| ------------------------- | ------------------ |
-| `Ctrl+Z`                  | Undo               |
-| `Ctrl+Y` / `Ctrl+Shift+Z` | Redo               |
-| `Ctrl+A`                  | Select all         |
-| `Ctrl+C`                  | Copy               |
-| `Ctrl+X`                  | Cut                |
-| `Ctrl+V`                  | Paste              |
-| `Ctrl+←/→`                | Word navigation    |
-| `Home/End`                | Line start/end     |
-| `Ctrl+Home/End`           | Document start/end |
-| `Tab`                     | Insert spaces      |
+| Shortcut                  | Action               |
+| ------------------------- | -------------------- |
+| `Ctrl+Z`                  | Undo                 |
+| `Ctrl+Y` / `Ctrl+Shift+Z` | Redo                 |
+| `Ctrl+A`                  | Select all           |
+| `Ctrl+C`                  | Copy                 |
+| `Ctrl+X`                  | Cut                  |
+| `Ctrl+V`                  | Paste                |
+| `Ctrl+←/→`                | Word navigation      |
+| `Home/End`                | Line start/end       |
+| `Ctrl+Home/End`           | Document start/end   |
+| `Tab`                     | Insert spaces        |
+| `Enter/Tab`               | Accept completion    |
+| `Escape`                  | Hide auto-complete   |
+| `↑/↓`                     | Navigate completions |
 
 ## 🎨 Theming
 
@@ -145,33 +159,39 @@ Customize colors via CSS variables:
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────┐
-│              User Input                  │
-│     (Keyboard / IME / Clipboard)        │
-└────────────────────┬────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────┐
-│            InputHandler                  │
-│  ┌───────────────┐ ┌───────────────┐   │
-│  │ EditContext   │ │   Textarea    │   │
-│  │ (Chrome 121+) │ │  (Fallback)   │   │
-│  └───────────────┘ └───────────────┘   │
-└────────────────────┬────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────┐
-│              Editor                      │
-│  ┌──────────┐ ┌──────────┐ ┌────────┐  │
-│  │ Document │ │Selection │ │  Undo  │  │
-│  └──────────┘ └──────────┘ └────────┘  │
-└────────────────────┬────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────┐
-│            EditorView                    │
-│  Lines | Cursor | Selection | Gutter    │
-└─────────────────────────────────────────┘
+Source Code
+    │
+    ▼
+┌─────────────────────────────────────────────────────┐
+│                    Tokenizer                         │
+│  • Monarch-style state machine                      │
+│  • Incremental with caching                         │
+│  • Multi-line construct support                     │
+└───────────────────────┬─────────────────────────────┘
+                        │ tokens
+                        ▼
+┌─────────────────────────────────────────────────────┐
+│                     Parser                           │
+│  • Recursive descent                                │
+│  • Error recovery                                   │
+│  • Full JavaScript ES6+ support                    │
+└───────────────────────┬─────────────────────────────┘
+                        │ AST
+                        ▼
+┌─────────────────────────────────────────────────────┐
+│                  Symbol Table                        │
+│  • Scope hierarchy (global/function/block/class)   │
+│  • Built-in globals (console, Math, etc.)          │
+│  • Type inference for object literals              │
+└───────────────────────┬─────────────────────────────┘
+                        │ symbols
+                        ▼
+┌─────────────────────────────────────────────────────┐
+│              Completion Provider                     │
+│  • Context detection (member/global/import)        │
+│  • Built-in method completions                     │
+│  • Keywords and snippets                           │
+└─────────────────────────────────────────────────────┘
 ```
 
 ## 📚 Documentation

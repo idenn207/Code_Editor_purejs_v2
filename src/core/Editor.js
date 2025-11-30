@@ -2,13 +2,14 @@
  * @fileoverview Main Editor class - entry point for the code editor
  * @module core/Editor
  *
- * EditContext-based code editor implementation.
+ * EditContext-based code editor implementation with Language Service.
  * Falls back to hidden textarea for unsupported browsers.
  */
 
+import { AutoComplete } from '../features/AutoComplete.js';
 import { InputHandler, isEditContextSupported } from '../input/InputHandler.js';
+import { LanguageService } from '../language/LanguageService.js';
 import { Document } from '../model/Document.js';
-import { Tokenizer } from '../tokenizer/Tokenizer.js';
 import { EditorView } from '../view/EditorView.js';
 
 // ============================================
@@ -23,6 +24,7 @@ const DEFAULT_OPTIONS = {
   lineHeight: 20,
   fontSize: 14,
   fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace",
+  autoComplete: true,
 };
 
 // ============================================
@@ -31,7 +33,8 @@ const DEFAULT_OPTIONS = {
 
 /**
  * Main code editor class.
- * Provides a unified API for text editing with EditContext support.
+ * Provides a unified API for text editing with EditContext support
+ * and code intelligence features.
  *
  * @example
  * const editor = new Editor(document.getElementById('editor'), {
@@ -48,7 +51,8 @@ export class Editor {
   _document = null;
   _view = null;
   _inputHandler = null;
-  _tokenizer = null;
+  _languageService = null;
+  _autoComplete = null;
   _selection = { start: 0, end: 0 };
   _undoStack = [];
   _redoStack = [];
@@ -82,9 +86,6 @@ export class Editor {
     // Create document model
     this._document = new Document(this._options.value);
 
-    // Create tokenizer for syntax highlighting
-    this._tokenizer = new Tokenizer(this._options.language);
-
     // Create view
     this._view = new EditorView(this._container, this, {
       lineHeight: this._options.lineHeight,
@@ -93,11 +94,26 @@ export class Editor {
       tabSize: this._options.tabSize,
     });
 
+    // Create language service
+    this._languageService = new LanguageService(this._document, {
+      language: this._options.language,
+    });
+
     // Create input handler (EditContext or fallback)
     this._inputHandler = new InputHandler(this._view.contentElement, this);
 
+    // Create auto-complete (if enabled)
+    if (this._options.autoComplete) {
+      this._autoComplete = new AutoComplete(this);
+    }
+
     // Track document changes for undo
     this._document.on('change', (change) => this._onDocumentChange(change));
+
+    // Forward language service events
+    this._languageService.on('analysisComplete', (data) => {
+      this.emit('analysisComplete', data);
+    });
 
     // Log input mode
     console.log(`[Editor] Initialized with ${this._inputHandler.getMode()} input`);
@@ -150,6 +166,9 @@ export class Editor {
       end: Math.max(0, Math.min(end, docLength)),
     };
 
+    // Scroll cursor into view
+    this._view.scrollToCursor();
+
     this.emit('selectionChange', this._selection);
   }
 
@@ -175,15 +194,12 @@ export class Editor {
 
     const action = this._undoStack.pop();
 
-    // Reverse the change
     const { startOffset, deletedText, insertedText, selectionBefore } = action;
 
     this._document.replaceRange(startOffset, startOffset + insertedText.length, deletedText);
 
-    // Restore selection
     this.setSelection(selectionBefore.start, selectionBefore.end);
 
-    // Add to redo stack
     this._redoStack.push(action);
 
     // Pop the auto-added undo entry
@@ -243,6 +259,7 @@ export class Editor {
   setValue(text) {
     this._document.setText(text);
     this.setSelection(0, 0);
+    this._languageService.invalidate();
   }
 
   /**
@@ -271,6 +288,49 @@ export class Editor {
   setCursorPosition(line, column) {
     const offset = this._document.positionToOffset(line, column);
     this.setSelection(offset, offset);
+  }
+
+  // ----------------------------------------
+  // Code Intelligence API
+  // ----------------------------------------
+
+  /**
+   * Get completions at current cursor position
+   * @returns {Array} - Completion items
+   */
+  getCompletions() {
+    return this._languageService.getCompletions(this._selection.end);
+  }
+
+  /**
+   * Get diagnostics (parse errors)
+   * @returns {Array} - Diagnostic items
+   */
+  getDiagnostics() {
+    return this._languageService.getDiagnostics();
+  }
+
+  /**
+   * Get symbol at cursor position
+   * @returns {Symbol|null}
+   */
+  getSymbolAtCursor() {
+    return this._languageService.getSymbolAt(this._selection.end);
+  }
+
+  /**
+   * Get document outline
+   * @returns {Array}
+   */
+  getOutline() {
+    return this._languageService.getDocumentSymbols();
+  }
+
+  /**
+   * Trigger autocomplete manually
+   */
+  triggerAutoComplete() {
+    this._autoComplete?.trigger();
   }
 
   // ----------------------------------------
@@ -356,8 +416,8 @@ export class Editor {
     return this._view;
   }
 
-  get tokenizer() {
-    return this._tokenizer;
+  get languageService() {
+    return this._languageService;
   }
 
   get inputMode() {
@@ -378,6 +438,8 @@ export class Editor {
   dispose() {
     if (this._disposed) return;
 
+    this._autoComplete?.dispose();
+    this._languageService?.dispose();
     this._inputHandler?.dispose();
     this._view?.dispose();
     this._listeners.clear();

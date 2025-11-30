@@ -77,7 +77,7 @@ export class TextareaHandler {
       resize: 'none',
       overflow: 'hidden',
       whiteSpace: 'pre',
-      opacity: '0.01', // Not 0 for accessibility
+      opacity: '0.01',
       background: 'transparent',
       color: 'transparent',
       fontSize: 'inherit',
@@ -97,27 +97,17 @@ export class TextareaHandler {
   _bindEvents() {
     const ta = this._textarea;
 
-    // Input event - main text input handler
     ta.addEventListener('input', (e) => this._handleInput(e));
-
-    // Composition events for IME
     ta.addEventListener('compositionstart', (e) => this._handleCompositionStart(e));
     ta.addEventListener('compositionupdate', (e) => this._handleCompositionUpdate(e));
     ta.addEventListener('compositionend', (e) => this._handleCompositionEnd(e));
-
-    // Keyboard events
     ta.addEventListener('keydown', (e) => this._handleKeyDown(e));
-
-    // Focus events
     ta.addEventListener('focus', () => this._handleFocus());
     ta.addEventListener('blur', () => this._handleBlur());
-
-    // Clipboard events
     ta.addEventListener('paste', (e) => this._handlePaste(e));
     ta.addEventListener('copy', (e) => this._handleCopy(e));
     ta.addEventListener('cut', (e) => this._handleCut(e));
 
-    // Click on container focuses textarea
     this._element.addEventListener('mousedown', (e) => {
       if (e.target !== this._textarea) {
         this._handleMouseDown(e);
@@ -130,7 +120,6 @@ export class TextareaHandler {
   // ----------------------------------------
 
   _handleInput(event) {
-    // During composition, wait for compositionend
     if (this._isComposing) {
       return;
     }
@@ -143,7 +132,6 @@ export class TextareaHandler {
       this._editor.document.replaceRange(start, end, text);
       this._editor.setSelection(start + text.length, start + text.length);
 
-      // Clear textarea for next input
       this._textarea.value = '';
 
       this._editor.emit('input', {
@@ -155,27 +143,20 @@ export class TextareaHandler {
   }
 
   _handleCompositionStart(event) {
-    console.log('[Textarea] compositionstart');
-
     this._isComposing = true;
     this._compositionText = '';
     this._editor.emit('compositionStart');
   }
 
   _handleCompositionUpdate(event) {
-    console.log('[Textarea] compositionupdate:', event.data);
-
     this._compositionText = event.data || '';
 
-    // Show composition preview
     this._editor.emit('compositionUpdate', {
       text: this._compositionText,
     });
   }
 
   _handleCompositionEnd(event) {
-    console.log('[Textarea] compositionend:', event.data);
-
     this._isComposing = false;
 
     const text = event.data || this._textarea.value;
@@ -186,7 +167,6 @@ export class TextareaHandler {
       this._editor.setSelection(start + text.length, start + text.length);
     }
 
-    // Clear textarea
     this._textarea.value = '';
     this._compositionText = '';
 
@@ -198,7 +178,6 @@ export class TextareaHandler {
   // ----------------------------------------
 
   _handleKeyDown(event) {
-    // During composition, let browser handle
     if (this._isComposing) {
       return;
     }
@@ -268,7 +247,6 @@ export class TextareaHandler {
     }
   }
 
-  // Key handlers (same logic as EditContextHandler)
   _handleArrowKey(key, shiftKey, modKey) {
     const doc = this._editor.document;
     let { start, end } = this._editor.getSelection();
@@ -388,7 +366,6 @@ export class TextareaHandler {
       this._editor.setSelection(offset, offset);
     }
 
-    // Focus textarea
     this._textarea.focus();
   }
 
@@ -452,9 +429,6 @@ export class TextareaHandler {
   // Public Methods
   // ----------------------------------------
 
-  /**
-   * Update textarea position near cursor for proper IME window placement
-   */
   updatePosition(cursorRect) {
     if (!this._textarea) return;
 

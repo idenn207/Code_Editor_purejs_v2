@@ -143,7 +143,7 @@ export class EditorView {
     this._lineHeight = this._options.lineHeight;
     document.body.removeChild(measureEl);
 
-    console.log(`[EditorView] Character metrics: ${this._charWidth}px × ${this._lineHeight}px`);
+    console.log(`[EditorView] Character metrics: ${this._charWidth.toFixed(2)}px × ${this._lineHeight}px`);
   }
 
   _bindEvents() {
@@ -191,9 +191,13 @@ export class EditorView {
   _renderLines() {
     const doc = this._editor.document;
     const lines = doc.lines;
-    const tokenizer = this._editor.tokenizer;
+    const languageService = this._editor.languageService;
+    const tokenizer = languageService?.getTokenizer();
 
     this._linesElement.innerHTML = '';
+
+    // Get tokens for each line using incremental tokenization
+    let state = null;
 
     lines.forEach((lineText, index) => {
       const lineEl = document.createElement('div');
@@ -201,21 +205,40 @@ export class EditorView {
       lineEl.dataset.lineIndex = index;
 
       if (tokenizer) {
-        // Syntax highlighted rendering
-        const tokens = tokenizer.tokenizeLine(lineText);
-        tokens.forEach((token) => {
+        // Get cached tokens or tokenize
+        const result = tokenizer.getLineTokens(index, lineText, state || { name: 'root', stack: [] });
+        const tokens = result.tokens;
+        state = result.endState;
+
+        // Render tokens
+        for (const token of tokens) {
           const span = document.createElement('span');
-          span.className = `ec-token ec-token-${token.type}`;
+          span.className = `ec-token ec-token-${this._normalizeTokenType(token.type)}`;
           span.textContent = token.value;
           lineEl.appendChild(span);
-        });
+        }
+
+        // Ensure empty lines have content
+        if (tokens.length === 0 || lineText === '') {
+          const emptySpan = document.createElement('span');
+          emptySpan.textContent = '\u00A0'; // Non-breaking space
+          lineEl.appendChild(emptySpan);
+        }
       } else {
         // Plain text rendering
-        lineEl.textContent = lineText || '\u00A0'; // Non-breaking space for empty lines
+        lineEl.textContent = lineText || '\u00A0';
       }
 
       this._linesElement.appendChild(lineEl);
     });
+  }
+
+  _normalizeTokenType(type) {
+    // Map token types to CSS classes
+    if (!type) return 'plain';
+
+    // Handle dot notation (e.g., 'keyword.literal' -> 'keyword-literal')
+    return type.replace(/\./g, '-');
   }
 
   _renderGutter() {
@@ -254,8 +277,8 @@ export class EditorView {
     }
 
     const doc = this._editor.document;
-    const startPos = doc.offsetToPosition(start);
-    const endPos = doc.offsetToPosition(end);
+    const startPos = doc.offsetToPosition(Math.min(start, end));
+    const endPos = doc.offsetToPosition(Math.max(start, end));
 
     // Render selection rectangles for each line
     for (let line = startPos.line; line <= endPos.line; line++) {
@@ -264,15 +287,18 @@ export class EditorView {
       let startCol = line === startPos.line ? startPos.column : 0;
       let endCol = line === endPos.line ? endPos.column : lineText.length;
 
-      if (startCol === endCol && line !== endPos.line) {
-        endCol = lineText.length + 1; // Include newline
+      // Include newline in selection visual
+      if (line !== endPos.line) {
+        endCol = Math.max(endCol, lineText.length) + 0.5;
       }
+
+      if (startCol === endCol) continue;
 
       const selRect = document.createElement('div');
       selRect.className = 'ec-selection-rect';
       selRect.style.top = `${line * this._lineHeight}px`;
       selRect.style.left = `${startCol * this._charWidth + this._options.padding}px`;
-      selRect.style.width = `${(endCol - startCol) * this._charWidth}px`;
+      selRect.style.width = `${Math.max((endCol - startCol) * this._charWidth, 4)}px`;
       selRect.style.height = `${this._lineHeight}px`;
 
       this._selectionElement.appendChild(selRect);
@@ -312,7 +338,7 @@ export class EditorView {
     const contentRect = this._contentElement.getBoundingClientRect();
 
     const x = clientX - contentRect.left - this._options.padding;
-    const y = clientY - contentRect.top - this._options.padding;
+    const y = clientY - contentRect.top - this._options.padding + this._wrapper.scrollTop;
 
     const line = Math.max(0, Math.min(Math.floor(y / this._lineHeight), this._editor.document.getLineCount() - 1));
 
@@ -334,7 +360,7 @@ export class EditorView {
     const contentRect = this._contentElement.getBoundingClientRect();
 
     const x = contentRect.left + this._options.padding + pos.column * this._charWidth;
-    const y = contentRect.top + this._options.padding + pos.line * this._lineHeight;
+    const y = contentRect.top + this._options.padding + pos.line * this._lineHeight - this._wrapper.scrollTop;
 
     return new DOMRect(x, y, this._charWidth, this._lineHeight);
   }
@@ -363,6 +389,26 @@ export class EditorView {
   getCursorRect() {
     const { end } = this._editor.getSelection();
     return this.getCharacterRect(end);
+  }
+
+  /**
+   * Scroll to ensure cursor is visible
+   */
+  scrollToCursor() {
+    const { end } = this._editor.getSelection();
+    const pos = this._editor.document.offsetToPosition(end);
+
+    const cursorTop = pos.line * this._lineHeight;
+    const cursorBottom = cursorTop + this._lineHeight;
+
+    const viewTop = this._wrapper.scrollTop;
+    const viewBottom = viewTop + this._wrapper.clientHeight;
+
+    if (cursorTop < viewTop) {
+      this._wrapper.scrollTop = cursorTop;
+    } else if (cursorBottom > viewBottom) {
+      this._wrapper.scrollTop = cursorBottom - this._wrapper.clientHeight;
+    }
   }
 
   // ----------------------------------------

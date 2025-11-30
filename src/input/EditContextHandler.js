@@ -124,18 +124,8 @@ export class EditContextHandler {
   // EditContext Event Handlers
   // ----------------------------------------
 
-  /**
-   * Handle text input from EditContext
-   * This is the main event for receiving user input
-   */
   _handleTextUpdate(event) {
     const { updateRangeStart, updateRangeEnd, text, selectionStart, selectionEnd } = event;
-
-    console.log('[EditContext] textupdate:', {
-      range: `${updateRangeStart}-${updateRangeEnd}`,
-      text: text,
-      selection: `${selectionStart}-${selectionEnd}`,
-    });
 
     // Apply text change to document model
     this._editor.document.replaceRange(updateRangeStart, updateRangeEnd, text);
@@ -151,14 +141,8 @@ export class EditContextHandler {
     });
   }
 
-  /**
-   * Handle IME composition styling
-   * OS sends formatting hints during composition
-   */
   _handleTextFormatUpdate(event) {
     const formats = event.getTextFormats();
-
-    console.log('[EditContext] textformatupdate:', formats);
 
     this._compositionRanges = formats.map((format) => ({
       start: format.rangeStart,
@@ -167,42 +151,21 @@ export class EditContextHandler {
       underlineThickness: format.underlineThickness,
     }));
 
-    // Emit for view to render composition decorations
     this._editor.emit('compositionFormat', this._compositionRanges);
   }
 
-  /**
-   * Handle character bounds request from OS
-   * Required for proper IME window positioning
-   */
   _handleCharacterBoundsUpdate(event) {
     const { rangeStart, rangeEnd } = event;
-
-    console.log('[EditContext] characterboundsupdate:', { rangeStart, rangeEnd });
-
-    // Calculate character bounds from view
     const bounds = this._calculateCharacterBounds(rangeStart, rangeEnd);
-
-    // Report bounds back to EditContext
     this._editContext.updateCharacterBounds(rangeStart, bounds);
   }
 
-  /**
-   * Handle composition start (IME begins)
-   */
   _handleCompositionStart(event) {
-    console.log('[EditContext] compositionstart');
-
     this._isComposing = true;
     this._editor.emit('compositionStart');
   }
 
-  /**
-   * Handle composition end (IME finishes)
-   */
   _handleCompositionEnd(event) {
-    console.log('[EditContext] compositionend');
-
     this._isComposing = false;
     this._compositionRanges = [];
     this._editor.emit('compositionEnd');
@@ -213,31 +176,16 @@ export class EditContextHandler {
   // ----------------------------------------
 
   _handleFocus() {
-    console.log('[EditContext] focus');
     this._editor.emit('focus');
   }
 
   _handleBlur() {
-    console.log('[EditContext] blur');
     this._editor.emit('blur');
   }
 
-  /**
-   * Handle keyboard events for non-text input
-   * EditContext handles text input, but we need to handle:
-   * - Arrow keys (cursor movement)
-   * - Backspace/Delete
-   * - Enter (newline)
-   * - Shortcuts (Ctrl+C, Ctrl+V, etc.)
-   */
   _handleKeyDown(event) {
     const { key, ctrlKey, metaKey, shiftKey } = event;
     const modKey = ctrlKey || metaKey;
-
-    console.log('[EditContext] keydown:', key);
-
-    // Let EditContext handle regular text input
-    // We only intercept special keys
 
     switch (key) {
       case 'ArrowLeft':
@@ -274,7 +222,6 @@ export class EditContextHandler {
         event.preventDefault();
         break;
 
-      // Shortcuts
       case 'a':
         if (modKey) {
           this._handleSelectAll();
@@ -303,7 +250,6 @@ export class EditContextHandler {
       case 'c':
         if (modKey) {
           this._handleCopy();
-          // Don't prevent default - let browser handle clipboard
         }
         break;
 
@@ -317,19 +263,16 @@ export class EditContextHandler {
       case 'v':
         if (modKey) {
           this._handlePaste();
-          // Don't prevent default - let browser handle clipboard
         }
         break;
     }
   }
 
   _handleMouseDown(event) {
-    // Calculate position from click coordinates
     const position = this._editor.view.getPositionFromPoint(event.clientX, event.clientY);
 
     if (position !== null) {
       const offset = this._editor.document.positionToOffset(position.line, position.column);
-
       this._editor.setSelection(offset, offset);
       this._syncEditContextSelection();
     }
@@ -343,7 +286,6 @@ export class EditContextHandler {
     const doc = this._editor.document;
     let { start, end } = this._editor.getSelection();
 
-    // If no shift, collapse selection to anchor
     if (!shiftKey && start !== end) {
       if (key === 'ArrowLeft' || key === 'ArrowUp') {
         end = start;
@@ -358,7 +300,6 @@ export class EditContextHandler {
     switch (key) {
       case 'ArrowLeft':
         if (modKey) {
-          // Move to word boundary (simplified)
           newOffset = this._findWordBoundary(end, -1);
         } else {
           newOffset = Math.max(0, end - 1);
@@ -408,13 +349,13 @@ export class EditContextHandler {
 
     if (key === 'Home') {
       if (modKey) {
-        newOffset = 0; // Document start
+        newOffset = 0;
       } else {
-        newOffset = doc.positionToOffset(pos.line, 0); // Line start
+        newOffset = doc.positionToOffset(pos.line, 0);
       }
     } else {
       if (modKey) {
-        newOffset = doc.getLength(); // Document end
+        newOffset = doc.getLength();
       } else {
         newOffset = doc.positionToOffset(pos.line, doc.getLine(pos.line).length);
       }
@@ -434,10 +375,8 @@ export class EditContextHandler {
     let { start, end } = this._editor.getSelection();
 
     if (start === end) {
-      // No selection - delete character before cursor
       if (start > 0) {
         if (modKey) {
-          // Delete word
           const wordStart = this._findWordBoundary(start, -1);
           start = wordStart;
         } else {
@@ -459,10 +398,8 @@ export class EditContextHandler {
     let { start, end } = this._editor.getSelection();
 
     if (start === end) {
-      // No selection - delete character after cursor
       if (end < doc.getLength()) {
         if (modKey) {
-          // Delete word
           const wordEnd = this._findWordBoundary(end, 1);
           end = wordEnd;
         } else {
@@ -490,7 +427,7 @@ export class EditContextHandler {
 
   _handleTab(shiftKey) {
     const { start, end } = this._editor.getSelection();
-    const tabText = '  '; // 2 spaces
+    const tabText = '  ';
 
     this._editor.document.replaceRange(start, end, tabText);
     this._editor.setSelection(start + tabText.length, start + tabText.length);
@@ -542,38 +479,23 @@ export class EditContextHandler {
   // Helper Methods
   // ----------------------------------------
 
-  /**
-   * Find word boundary in given direction
-   * @param {number} offset - Starting offset
-   * @param {number} direction - -1 for left, 1 for right
-   * @returns {number}
-   */
   _findWordBoundary(offset, direction) {
     const text = this._editor.document.getText();
     const wordRegex = /\w/;
     let pos = offset;
 
     if (direction < 0) {
-      // Move left
       pos--;
-      // Skip whitespace
       while (pos > 0 && !wordRegex.test(text[pos])) pos--;
-      // Skip word characters
       while (pos > 0 && wordRegex.test(text[pos - 1])) pos--;
     } else {
-      // Move right
-      // Skip word characters
       while (pos < text.length && wordRegex.test(text[pos])) pos++;
-      // Skip whitespace
       while (pos < text.length && !wordRegex.test(text[pos])) pos++;
     }
 
     return Math.max(0, Math.min(text.length, pos));
   }
 
-  /**
-   * Calculate character bounding rectangles for IME positioning
-   */
   _calculateCharacterBounds(rangeStart, rangeEnd) {
     const bounds = [];
 
@@ -587,9 +509,6 @@ export class EditContextHandler {
     return bounds;
   }
 
-  /**
-   * Map EditContext underline style to our format
-   */
   _mapUnderlineStyle(style) {
     switch (style) {
       case 'solid':
@@ -609,35 +528,21 @@ export class EditContextHandler {
   // Synchronization with EditContext
   // ----------------------------------------
 
-  /**
-   * Sync document text to EditContext
-   * Call after programmatic document changes
-   */
   _syncEditContextText() {
     const text = this._editor.document.getText();
     this._editContext.updateText(0, this._editContext.text.length, text);
   }
 
-  /**
-   * Sync selection to EditContext
-   * Call after programmatic selection changes
-   */
   _syncEditContextSelection() {
     const { start, end } = this._editor.getSelection();
     this._editContext.updateSelection(start, end);
-
-    // Also update control bounds for proper IME positioning
     this._updateControlBounds();
   }
 
-  /**
-   * Update control bounds (editor position) for EditContext
-   */
   _updateControlBounds() {
     const rect = this._element.getBoundingClientRect();
     this._editContext.updateControlBounds(rect);
 
-    // Update selection bounds
     const selectionRect = this._editor.view.getSelectionRect();
     if (selectionRect) {
       this._editContext.updateSelectionBounds(selectionRect);
@@ -648,44 +553,26 @@ export class EditContextHandler {
   // Public Methods
   // ----------------------------------------
 
-  /**
-   * Focus the editor
-   */
   focus() {
     this._element.focus();
   }
 
-  /**
-   * Check if editor is focused
-   */
   isFocused() {
     return document.activeElement === this._element;
   }
 
-  /**
-   * Check if currently composing (IME active)
-   */
   isComposing() {
     return this._isComposing;
   }
 
-  /**
-   * Get composition decoration ranges
-   */
   getCompositionRanges() {
     return this._compositionRanges;
   }
 
-  /**
-   * Update selection from external source
-   */
   updateSelection(start, end) {
     this._editContext.updateSelection(start, end);
   }
 
-  /**
-   * Clean up resources
-   */
   dispose() {
     if (this._disposed) return;
 
@@ -699,10 +586,6 @@ export class EditContextHandler {
 // Feature Detection
 // ============================================
 
-/**
- * Check if EditContext API is supported
- * @returns {boolean}
- */
 export function isEditContextSupported() {
   return 'EditContext' in window;
 }
