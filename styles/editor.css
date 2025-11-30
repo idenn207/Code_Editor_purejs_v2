@@ -67,7 +67,7 @@
 .ec-editor-wrapper {
   display: flex;
   height: 100%;
-  overflow: auto;
+  overflow: auto; /* FIX Issue 3: Allow scrolling */
 }
 
 /* ============================================
@@ -96,8 +96,9 @@
 .ec-content {
   flex: 1;
   position: relative;
-  overflow: hidden;
+  overflow: visible; /* FIX Issue 3: Changed from hidden to visible */
   cursor: text;
+  min-width: 0; /* Allow flex shrinking */
 }
 
 .ec-content:focus {
@@ -112,6 +113,7 @@
   position: relative;
   white-space: pre;
   z-index: 2;
+  min-height: 100%; /* FIX Issue 3: Ensure lines container fills available space */
 }
 
 .ec-line {
@@ -119,7 +121,7 @@
 }
 
 /* ============================================
-   Cursor
+   Cursor - FIX Issue 2: Improved cursor styling
    ============================================ */
 
 .ec-cursor {
@@ -128,16 +130,23 @@
   background: var(--ec-cursor-color);
   z-index: 10;
   pointer-events: none;
-  opacity: 0;
+  opacity: 0; /* Default hidden */
   transition: opacity 0.1s;
 }
 
+/* FIX Issue 2: Only show cursor when editor is focused */
 .ec-focused .ec-cursor {
   opacity: 1;
 }
 
-.ec-cursor-blink {
+/* FIX Issue 2: Ensure blink animation only applies when visible */
+.ec-focused .ec-cursor.ec-cursor-blink {
   animation: ec-cursor-blink 1s step-end infinite;
+}
+
+/* Remove blink when not focused */
+.ec-cursor:not(.ec-cursor-blink) {
+  animation: none;
 }
 
 @keyframes ec-cursor-blink {
@@ -215,7 +224,7 @@
   color: var(--ec-keyword);
 }
 
-.ec-token-keyword\.literal {
+.ec-token-keyword-literal {
   color: var(--ec-keyword-literal);
 }
 
@@ -223,22 +232,22 @@
   color: var(--ec-string);
 }
 
-.ec-token-string\.template {
+.ec-token-string-template {
   color: var(--ec-string-template);
 }
 
-.ec-token-string\.escape {
+.ec-token-string-escape {
   color: var(--ec-string-escape);
 }
 
-.ec-token-string\.invalid {
+.ec-token-string-invalid {
   color: var(--ec-string);
   text-decoration: underline wavy red;
 }
 
 .ec-token-number,
-.ec-token-number\.float,
-.ec-token-number\.hex {
+.ec-token-number-float,
+.ec-token-number-hex {
   color: var(--ec-number);
 }
 
@@ -252,7 +261,7 @@
 }
 
 .ec-token-delimiter,
-.ec-token-delimiter\.bracket {
+.ec-token-delimiter-bracket {
   color: var(--ec-delimiter);
 }
 
@@ -299,6 +308,12 @@
   font-size: 13px;
 }
 
+.ec-autocomplete-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
 .ec-autocomplete-item {
   display: flex;
   align-items: center;
@@ -312,7 +327,7 @@
   background: var(--ec-autocomplete-hover);
 }
 
-.ec-autocomplete-item.selected {
+.ec-autocomplete-item.ec-autocomplete-item-selected {
   background: var(--ec-autocomplete-selected);
 }
 
@@ -414,7 +429,7 @@
   --ec-autocomplete-hover: #e8e8e8;
 }
 
-.ec-editor.ec-theme-light .ec-autocomplete-item.selected {
+.ec-editor.ec-theme-light .ec-autocomplete-item.ec-autocomplete-item-selected {
   color: white;
 }
 

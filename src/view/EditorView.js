@@ -94,7 +94,7 @@ export class EditorView {
     this._linesElement = document.createElement('div');
     this._linesElement.className = 'ec-lines';
 
-    // Cursor layer
+    // Cursor layer - FIX: Create single cursor element
     this._cursorElement = document.createElement('div');
     this._cursorElement.className = 'ec-cursor';
 
@@ -124,6 +124,9 @@ export class EditorView {
 
     this._contentElement.style.padding = `${padding}px`;
     this._gutterElement.style.padding = `${padding}px 0`;
+
+    // FIX Issue 3: Set min-height to ensure content area expands
+    this._linesElement.style.minHeight = '100%';
   }
 
   _measureCharacter() {
@@ -165,15 +168,17 @@ export class EditorView {
       this._compositionElement.innerHTML = '';
     });
 
-    // Focus styling
+    // Focus styling - FIX Issue 2: Properly manage cursor visibility
     this._editor.on('focus', () => {
       this._container.classList.add('ec-focused');
       this._cursorElement.classList.add('ec-cursor-blink');
+      this._cursorElement.style.opacity = '1';
     });
 
     this._editor.on('blur', () => {
       this._container.classList.remove('ec-focused');
       this._cursorElement.classList.remove('ec-cursor-blink');
+      this._cursorElement.style.opacity = '0';
     });
   }
 
@@ -253,6 +258,7 @@ export class EditorView {
     }
   }
 
+  // FIX Issue 1 & 2: Corrected cursor position calculation
   _renderCursor() {
     const { start, end } = this._editor.getSelection();
     const doc = this._editor.document;
@@ -260,12 +266,20 @@ export class EditorView {
     // Use selection end as cursor position
     const pos = doc.offsetToPosition(end);
 
+    // FIX: Calculate position relative to lines container (inside padding)
     const top = pos.line * this._lineHeight;
     const left = pos.column * this._charWidth;
 
+    // FIX Issue 2: Reset all cursor styles to prevent duplicates
     this._cursorElement.style.top = `${top}px`;
-    this._cursorElement.style.left = `${left + this._options.padding}px`;
+    this._cursorElement.style.left = `${left}px`;
     this._cursorElement.style.height = `${this._lineHeight}px`;
+    this._cursorElement.style.width = '2px';
+
+    // Ensure cursor visibility based on focus state
+    if (this._container.classList.contains('ec-focused')) {
+      this._cursorElement.style.opacity = '1';
+    }
   }
 
   _renderSelection() {
@@ -297,7 +311,7 @@ export class EditorView {
       const selRect = document.createElement('div');
       selRect.className = 'ec-selection-rect';
       selRect.style.top = `${line * this._lineHeight}px`;
-      selRect.style.left = `${startCol * this._charWidth + this._options.padding}px`;
+      selRect.style.left = `${startCol * this._charWidth}px`;
       selRect.style.width = `${Math.max((endCol - startCol) * this._charWidth, 4)}px`;
       selRect.style.height = `${this._lineHeight}px`;
 
@@ -317,7 +331,7 @@ export class EditorView {
       const decoration = document.createElement('div');
       decoration.className = `ec-composition-decoration ec-${range.underlineStyle}`;
       decoration.style.top = `${startPos.line * this._lineHeight + this._lineHeight - 2}px`;
-      decoration.style.left = `${startPos.column * this._charWidth + this._options.padding}px`;
+      decoration.style.left = `${startPos.column * this._charWidth}px`;
       decoration.style.width = `${(endPos.column - startPos.column) * this._charWidth}px`;
 
       this._compositionElement.appendChild(decoration);
