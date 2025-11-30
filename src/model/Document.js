@@ -85,7 +85,7 @@ export class Document {
    * @param {number} startOffset - Start character offset
    * @param {number} endOffset - End character offset
    * @param {string} newText - Text to insert
-   * @returns {Object} Change info { startOffset, endOffset, insertedText, deletedText }
+   * @returns {Object} Change info
    */
   replaceRange(startOffset, endOffset, newText) {
     const oldText = this.getText();
@@ -93,8 +93,14 @@ export class Document {
 
     const newFullText = oldText.slice(0, startOffset) + newText + oldText.slice(endOffset);
 
+    const oldLines = [...this._lines];
     this._lines = newFullText.split('\n');
     this._version++;
+
+    // Calculate affected line range
+    const startPos = this.offsetToPosition(startOffset);
+    const oldEndPos = { line: oldLines.length - 1, column: oldLines[oldLines.length - 1].length };
+    const newEndPos = this.offsetToPosition(startOffset + newText.length);
 
     const change = {
       startOffset,
@@ -102,6 +108,8 @@ export class Document {
       insertedText: newText,
       deletedText,
       newEndOffset: startOffset + newText.length,
+      startLine: startPos.line,
+      endLine: Math.max(startPos.line, this._lines.length - 1),
     };
 
     this._emit('change', change);
