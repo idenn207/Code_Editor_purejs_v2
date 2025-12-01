@@ -82,14 +82,9 @@ export class Tokenizer {
   }
 
   _compilePattern(pattern) {
-    if (pattern instanceof RegExp) {
-      // Ensure pattern matches from start
-      const source = pattern.source.startsWith('^') ? pattern.source : `^(?:${pattern.source})`;
-      return new RegExp(source, pattern.flags);
-    }
-
-    // String pattern - replace grammar references
-    let source = pattern;
+    // Get source string from pattern (RegExp or string)
+    let source = pattern instanceof RegExp ? pattern.source : pattern;
+    const flags = pattern instanceof RegExp ? pattern.flags : '';
 
     // Replace @reference with grammar values
     source = source.replace(/@(\w+)/g, (match, name) => {
@@ -117,7 +112,7 @@ export class Tokenizer {
       source = `^(?:${source})`;
     }
 
-    return new RegExp(source);
+    return new RegExp(source, flags);
   }
 
   _escapeRegex(string) {
