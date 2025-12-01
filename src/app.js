@@ -172,7 +172,8 @@ document.getElementById('btn-show-symbols').onclick = () => {
 let isDark = true;
 document.getElementById('btn-toggle-theme').onclick = () => {
   isDark = !isDark;
-  container.querySelector('.ec-editor').classList.toggle('ec-theme-light', !isDark);
+  // container.querySelector('.ec-editor').classList.toggle('ec-theme-light', !isDark);
+  container.classList.toggle('ec-theme-light', !isDark);
 };
 
 // Focus editor
