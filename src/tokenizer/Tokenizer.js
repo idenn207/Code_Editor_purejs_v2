@@ -61,9 +61,10 @@ export class Tokenizer {
       for (const rule of rules) {
         // Handle include directive
         if (rule.include) {
+          const includeName = rule.include.startsWith('@') ? rule.include.slice(1) : rule.include;
           this._compiledRules[stateName].push({
             type: 'include',
-            state: rule.include.slice(1), // Remove @
+            state: includeName,
           });
           continue;
         }

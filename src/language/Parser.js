@@ -929,14 +929,7 @@ export class Parser {
 
   _parseIdentifier() {
     const token = this._advance();
-    if (
-      token.type !== 'identifier' &&
-      token.type !== TokenType.IDENTIFIER &&
-      token.type !== 'function' &&
-      token.type !== TokenType.FUNCTION &&
-      token.type !== 'class' &&
-      token.type !== TokenType.CLASS
-    ) {
+    if (token.type !== TokenType.IDENTIFIER && token.type !== TokenType.FUNCTION && token.type !== TokenType.CLASS) {
       throw new ParseError(`Expected identifier, got ${token.type}`, token, 'identifier');
     }
     return AST.identifier(token.value);

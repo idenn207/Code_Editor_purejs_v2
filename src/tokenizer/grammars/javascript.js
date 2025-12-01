@@ -273,7 +273,7 @@ export const JavaScriptGrammar = {
     // ----------------
     // Template Expression State (${...})
     // ----------------
-    template_expression: [[/\}/, TokenType.DELIMITER_BRACKET, '@pop'], { include: 'root' }],
+    template_expression: [[/\}/, TokenType.DELIMITER_BRACKET, '@pop'], { include: '@root' }],
 
     // ----------------
     // RegExp State (simplified)
