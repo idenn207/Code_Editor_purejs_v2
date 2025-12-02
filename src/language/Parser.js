@@ -484,6 +484,22 @@ export class Parser {
   _parseAssignment() {
     const left = this._parseConditional();
 
+    // Check for arrow function with single parameter (no parentheses)
+    // e.g., n => n * 2
+    if (left.type === NodeType.IDENTIFIER && this._match('operator', '=>')) {
+      let body;
+      let expression = true;
+
+      if (this._check('delimiter.bracket', '{')) {
+        body = this._parseBlockStatement();
+        expression = false;
+      } else {
+        body = this._parseAssignment();
+      }
+
+      return AST.arrowFunctionExpression([left], body, expression);
+    }
+
     if (this._matchAny('operator', ['=', '+=', '-=', '*=', '/=', '%=', '**=', '<<=', '>>=', '>>>=', '&=', '|=', '^=', '&&=', '||=', '??='])) {
       const operator = this._previous().value;
       const right = this._parseAssignment();
