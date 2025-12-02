@@ -66,8 +66,6 @@ export class Parser {
       }
     }
 
-    console.log('this._tokens: ', this._tokens);
-
     return {
       ast: AST.program(body),
       errors: this._errors,
@@ -1153,4 +1151,3 @@ export class Parser {
     }
   }
 }
-
