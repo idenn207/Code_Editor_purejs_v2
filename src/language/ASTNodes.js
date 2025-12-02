@@ -18,6 +18,7 @@ export const NodeType = Object.freeze({
   CLASS_DECLARATION: 'ClassDeclaration',
   CLASS_BODY: 'ClassBody',
   METHOD_DEFINITION: 'MethodDefinition',
+  PROPERTY_DEFINITION: 'PropertyDefinition',
 
   // Expressions
   IDENTIFIER: 'Identifier',
@@ -164,6 +165,16 @@ export const AST = {
       key,
       value,
       kind, // 'constructor' | 'method' | 'get' | 'set'
+      computed,
+      static: isStatic,
+      ...loc,
+    });
+  },
+
+  propertyDefinition(key, value = null, computed = false, isStatic = false, loc = {}) {
+    return new ASTNode(NodeType.PROPERTY_DEFINITION, {
+      key,
+      value,
       computed,
       static: isStatic,
       ...loc,

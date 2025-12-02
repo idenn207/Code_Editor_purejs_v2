@@ -553,6 +553,17 @@ export class SymbolTable {
               parameters: member.value?.params?.map((p) => p.name).filter(Boolean) || [],
             })
           );
+        } else if (member.type === NodeType.PROPERTY_DEFINITION) {
+          // Handle class field declarations
+          const propertyName = member.key.name || member.key.value;
+          const isPrivate = propertyName && propertyName.startsWith('_');
+
+          symbol.addMember(
+            new Symbol(propertyName, SymbolKind.PROPERTY, {
+              node: member,
+              type: isPrivate ? 'private' : 'public',
+            })
+          );
         }
       }
     }
@@ -575,6 +586,11 @@ export class SymbolTable {
             }
           }
 
+          // Extract this.property assignments from constructor
+          if (member.kind === 'constructor' && member.value.body) {
+            this._extractConstructorProperties(symbol, member.value.body);
+          }
+
           // Visit method body
           if (member.value.body) {
             this._visitNode(member.value.body);
@@ -586,6 +602,60 @@ export class SymbolTable {
     }
 
     this.exitScope();
+  }
+
+  /**
+   * Extract this.property assignments from constructor body
+   */
+  _extractConstructorProperties(classSymbol, constructorBody) {
+    if (!constructorBody || !constructorBody.body) return;
+
+    const visitNode = (node) => {
+      if (!node) return;
+
+      // Check for this.property = value
+      if (node.type === NodeType.EXPRESSION_STATEMENT && node.expression) {
+        const expr = node.expression;
+        if (
+          expr.type === NodeType.ASSIGNMENT_EXPRESSION &&
+          expr.left.type === NodeType.MEMBER_EXPRESSION &&
+          expr.left.object.type === NodeType.THIS_EXPRESSION
+        ) {
+          const propertyName = expr.left.property.name;
+          if (propertyName) {
+            // Check if property is already defined (from class fields)
+            const existing = classSymbol.getMember(propertyName);
+            if (!existing) {
+              const isPrivate = propertyName.startsWith('_');
+              classSymbol.addMember(
+                new Symbol(propertyName, SymbolKind.PROPERTY, {
+                  node: expr,
+                  type: isPrivate ? 'private' : 'public',
+                })
+              );
+            }
+          }
+        }
+      }
+
+      // Recursively visit block statements
+      if (node.type === NodeType.BLOCK_STATEMENT && node.body) {
+        for (const statement of node.body) {
+          visitNode(statement);
+        }
+      }
+
+      // Visit if statements
+      if (node.type === NodeType.IF_STATEMENT) {
+        visitNode(node.consequent);
+        visitNode(node.alternate);
+      }
+    };
+
+    // Visit all statements in constructor body
+    for (const statement of constructorBody.body) {
+      visitNode(statement);
+    }
   }
 
   _visitExpression(expr) {

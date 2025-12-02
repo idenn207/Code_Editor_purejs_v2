@@ -225,6 +225,19 @@ export class Parser {
 
       const key = this._parsePropertyName();
 
+      // Check for field declaration (property = value; or property;)
+      if (this._check('operator', '=') || this._check('delimiter', ';') || this._check('delimiter.bracket', '}')) {
+        let value = null;
+        if (this._match('operator', '=')) {
+          value = this._parseAssignment();
+        }
+        this._match('delimiter', ';'); // Optional semicolon
+
+        // Create a PropertyDefinition node (class field)
+        body.push(AST.propertyDefinition(key, value, false, isStatic));
+        continue;
+      }
+
       // Check for constructor
       if (key.type === NodeType.IDENTIFIER && key.name === 'constructor') {
         kind = 'constructor';
