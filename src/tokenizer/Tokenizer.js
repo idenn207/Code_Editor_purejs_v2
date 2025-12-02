@@ -128,9 +128,10 @@ export class Tokenizer {
    * Tokenize a single line with state
    * @param {string} line - Line content
    * @param {TokenizerState} state - Current tokenizer state
+   * @param {number} lineIndex - Line number (0-based)
    * @returns {{ tokens: Array, endState: TokenizerState }}
    */
-  tokenizeLine(line, state = TokenizerState.initial()) {
+  tokenizeLine(line, state = TokenizerState.initial(), lineIndex = 0) {
     const tokens = [];
     let pos = 0;
     let currentState = state.clone();
@@ -148,6 +149,7 @@ export class Tokenizer {
             value: value,
             start: pos,
             end: pos + value.length,
+            line: lineIndex,
           });
         }
 
@@ -164,6 +166,7 @@ export class Tokenizer {
           value: line[pos],
           start: pos,
           end: pos + 1,
+          line: lineIndex,
         });
         pos++;
       }
@@ -278,7 +281,7 @@ export class Tokenizer {
     }
 
     // Tokenize and cache
-    const result = this.tokenizeLine(line, startState);
+    const result = this.tokenizeLine(line, startState, lineIndex);
 
     this._cache.set(cacheKey, {
       line,

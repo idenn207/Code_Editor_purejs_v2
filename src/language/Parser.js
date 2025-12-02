@@ -725,7 +725,22 @@ export class Parser {
 
     // new
     if (this._matchKeyword('new')) {
-      const callee = this._parseCall();
+      // Parse member expression (identifier with member accesses, but no calls)
+      let callee = this._parsePrimary();
+
+      // Handle member access (. and []) but not function calls
+      while (this._check('delimiter', '.') || this._check('delimiter.bracket', '[')) {
+        if (this._match('delimiter', '.')) {
+          const property = this._parseIdentifier();
+          callee = AST.memberExpression(callee, property, false);
+        } else if (this._match('delimiter.bracket', '[')) {
+          const property = this._parseExpression();
+          this._expect('delimiter.bracket', ']');
+          callee = AST.memberExpression(callee, property, true);
+        }
+      }
+
+      // Now parse arguments
       let args = [];
       if (this._match('delimiter.bracket', '(')) {
         if (!this._check('delimiter.bracket', ')')) {
@@ -744,11 +759,12 @@ export class Parser {
       return AST.literal(Number(token.value), token.value);
     }
 
-    if (this._checkType('string') || this._checkType('string.template')) {
-      const token = this._advance();
-      // Remove quotes
-      const value = token.value.slice(1, -1);
-      return AST.literal(value, token.value);
+    if (this._checkType('string')) {
+      return this._parseString();
+    }
+
+    if (this._checkType('string.template')) {
+      return this._parseTemplateLiteral();
     }
 
     if (this._checkType('keyword.literal')) {
@@ -1054,6 +1070,86 @@ export class Parser {
 
     this._expect('delimiter.bracket', ')');
     return params;
+  }
+
+  _parseString() {
+    // Expect opening quote
+    const startToken = this._advance();
+    const quoteChar = startToken.value;
+
+    if (quoteChar !== '"' && quoteChar !== "'") {
+      throw new ParseError('Expected opening quote for string', startToken, 'string');
+    }
+
+    let combinedValue = '';
+
+    // Collect all string parts until closing quote
+    while (!this._isAtEnd()) {
+      const token = this._peek();
+
+      if (token.type === 'string' && token.value === quoteChar) {
+        // Closing quote - we're done
+        this._advance();
+        break;
+      } else if (token.type === 'string' || token.type === 'string.escape' || token.type === 'string.invalid') {
+        // String content, escape sequence, or invalid escape
+        combinedValue += token.value;
+        this._advance();
+      } else {
+        // Unexpected token - break
+        break;
+      }
+    }
+
+    return AST.literal(combinedValue, quoteChar + combinedValue + quoteChar);
+  }
+
+  _parseTemplateLiteral() {
+    // Expect opening backtick
+    const startToken = this._advance();
+    if (startToken.value !== '`') {
+      throw new ParseError('Expected opening backtick for template literal', startToken, '`');
+    }
+
+    let combinedValue = '';
+    let depth = 0;
+
+    // Collect all template parts until closing backtick
+    while (!this._isAtEnd()) {
+      const token = this._peek();
+
+      if (token.type === 'delimiter.bracket' && token.value === '${') {
+        depth++;
+        this._advance();
+        // Skip through the embedded expression
+        while (!this._isAtEnd() && depth > 0) {
+          const t = this._advance();
+          if (t.type === 'delimiter.bracket' && t.value === '}') {
+            depth--;
+          } else if (t.type === 'delimiter.bracket' && t.value === '${') {
+            depth++;
+          }
+        }
+      } else if (token.type === 'string.template') {
+        const value = token.value;
+        this._advance();
+
+        if (value === '`') {
+          // Closing backtick - we're done
+          break;
+        } else {
+          // Template string part
+          combinedValue += value;
+        }
+      } else {
+        // Unexpected token - break
+        break;
+      }
+    }
+
+    // For now, return a simple literal
+    // TODO: Build proper TemplateLiteral AST node with quasis and expressions
+    return AST.literal(combinedValue, '`' + combinedValue + '`');
   }
 
   // ----------------------------------------
