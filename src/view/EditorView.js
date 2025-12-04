@@ -293,6 +293,7 @@ export class EditorView {
     const doc = this._editor.document;
     const startPos = doc.offsetToPosition(Math.min(start, end));
     const endPos = doc.offsetToPosition(Math.max(start, end));
+    const offset = this._options.padding;
 
     // Render selection rectangles for each line
     for (let line = startPos.line; line <= endPos.line; line++) {
@@ -310,8 +311,8 @@ export class EditorView {
 
       const selRect = document.createElement('div');
       selRect.className = 'ec-selection-rect';
-      selRect.style.top = `${line * this._lineHeight}px`;
-      selRect.style.left = `${startCol * this._charWidth}px`;
+      selRect.style.top = `${line * this._lineHeight + offset}px`;
+      selRect.style.left = `${startCol * this._charWidth + offset}px`;
       selRect.style.width = `${Math.max((endCol - startCol) * this._charWidth, 4)}px`;
       selRect.style.height = `${this._lineHeight}px`;
 

@@ -109,6 +109,9 @@ export class EditContextHandler {
 
     // Mouse events for selection
     this._element.addEventListener('mousedown', (e) => this._handleMouseDown(e));
+
+    // Capture native browser selection changes (for mouse drag selection)
+    document.addEventListener('selectionchange', () => this._handleSelectionChange());
   }
 
   _bindDocumentEvents() {
@@ -275,6 +278,42 @@ export class EditContextHandler {
       const offset = this._editor.document.positionToOffset(position.line, position.column);
       this._editor.setSelection(offset, offset);
       this._syncEditContextSelection();
+    }
+  }
+
+  _handleSelectionChange() {
+    const selection = window.getSelection();
+
+    // Only process if selection is within our editor
+    if (!selection || !selection.rangeCount || !this._element.contains(selection.anchorNode)) {
+      return;
+    }
+
+    // Ignore if we're composing (IME input)
+    if (this._isComposing) {
+      return;
+    }
+
+    try {
+      const range = selection.getRangeAt(0);
+
+      // Convert DOM selection to editor offsets
+      const start = this._getOffsetFromNode(range.startContainer, range.startOffset);
+      const end = this._getOffsetFromNode(range.endContainer, range.endOffset);
+
+      // Only update if we successfully converted both positions
+      if (start !== null && end !== null) {
+        const currentSelection = this._editor.getSelection();
+
+        // Only update if the selection has actually changed
+        if (currentSelection.start !== start || currentSelection.end !== end) {
+          this._editor.setSelection(start, end);
+          this._syncEditContextSelection();
+        }
+      }
+    } catch (error) {
+      // Silently ignore errors during selection conversion
+      // This can happen during rapid DOM updates
     }
   }
 
@@ -494,6 +533,72 @@ export class EditContextHandler {
     }
 
     return Math.max(0, Math.min(text.length, pos));
+  }
+
+  /**
+   * Convert DOM node and offset to editor offset
+   * @param {Node} node - DOM node from selection
+   * @param {number} nodeOffset - Offset within the node
+   * @returns {number | null} Editor offset, or null if conversion failed
+   */
+  _getOffsetFromNode(node, nodeOffset) {
+    // Walk up the DOM tree to find the line element
+    let lineElement = node;
+    while (lineElement && lineElement !== this._element) {
+      if (lineElement.dataset?.lineIndex !== undefined) {
+        break;
+      }
+      lineElement = lineElement.parentElement;
+    }
+
+    // If we couldn't find a line element, return null
+    if (!lineElement || lineElement.dataset?.lineIndex === undefined) {
+      return null;
+    }
+
+    const lineIndex = parseInt(lineElement.dataset.lineIndex);
+
+    // Calculate column offset within the line
+    let columnOffset = 0;
+
+    // Create a tree walker to traverse all text nodes in the line
+    const walker = document.createTreeWalker(
+      lineElement,
+      NodeFilter.SHOW_TEXT,
+      null
+    );
+
+    let currentNode;
+    while ((currentNode = walker.nextNode())) {
+      if (currentNode === node) {
+        // Found the target node, add the offset within it
+        columnOffset += nodeOffset;
+        break;
+      } else {
+        // Add the full length of this text node
+        columnOffset += currentNode.textContent.length;
+      }
+    }
+
+    // If the node is an element (not text), we need to handle it differently
+    if (node.nodeType === Node.ELEMENT_NODE && node.dataset?.lineIndex !== undefined) {
+      // Selection is at element level, use nodeOffset to count children
+      const walker = document.createTreeWalker(
+        node,
+        NodeFilter.SHOW_TEXT,
+        null
+      );
+
+      columnOffset = 0;
+      let childCount = 0;
+      while (walker.nextNode() && childCount < nodeOffset) {
+        columnOffset += walker.currentNode.textContent.length;
+        childCount++;
+      }
+    }
+
+    // Convert line/column to editor offset
+    return this._editor.document.positionToOffset(lineIndex, columnOffset);
   }
 
   _calculateCharacterBounds(rangeStart, rangeEnd) {
