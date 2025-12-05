@@ -40,13 +40,52 @@ export class Parser {
   // ----------------------------------------
 
   /**
+   * Normalize token positions from per-line to absolute document positions
+   * @param {Array} tokens - Token array with per-line positions
+   * @returns {Array} - Tokens with absolute positions
+   */
+  _normalizeTokenPositions(tokens) {
+    let lineOffset = 0; // Offset at the start of the current line
+    let currentLineLength = 0; // Length of current line so far
+    const normalizedTokens = [];
+
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
+
+      // Create a new token with absolute positions
+      const normalizedToken = {
+        ...token,
+        start: lineOffset + (token.start || 0),
+        end: lineOffset + (token.end || 0),
+      };
+
+      normalizedTokens.push(normalizedToken);
+
+      // Track the maximum end position on this line
+      currentLineLength = Math.max(currentLineLength, token.end || 0);
+
+      // Check if this token is a newline (indicates line boundary)
+      if (token.value === '\n' || token.type === 'whitespace' && token.value.includes('\n')) {
+        // Move to next line: add current line length + newline character
+        lineOffset += currentLineLength;
+        currentLineLength = 0; // Reset for next line
+      }
+    }
+
+    return normalizedTokens;
+  }
+
+  /**
    * Parse tokens into AST
    * @param {Array} tokens - Token array from tokenizer
    * @returns {{ ast: ASTNode, errors: Array }}
    */
   parse(tokens) {
-    // Filter out whitespace and comments
-    this._tokens = tokens.filter((t) => t.type !== TokenType.WHITESPACE && t.type !== TokenType.COMMENT && t.type !== 'whitespace' && t.type !== 'comment');
+    // Convert to absolute positions first (including whitespace for line tracking)
+    const normalizedTokens = this._normalizeTokenPositions(tokens);
+
+    // Then filter out whitespace and comments
+    this._tokens = normalizedTokens.filter((t) => t.type !== TokenType.WHITESPACE && t.type !== TokenType.COMMENT && t.type !== 'whitespace' && t.type !== 'comment');
     this._pos = 0;
     this._errors = [];
 
@@ -185,6 +224,7 @@ export class Parser {
   }
 
   _parseClassDeclaration() {
+    const start = this._mark();
     this._expect('keyword', 'class');
 
     const id = this._parseIdentifier();
@@ -196,10 +236,11 @@ export class Parser {
 
     const body = this._parseClassBody();
 
-    return AST.classDeclaration(id, superClass, body);
+    return AST.classDeclaration(id, superClass, body, this._getPositionFrom(start));
   }
 
   _parseClassBody() {
+    const start = this._mark();
     this._expect('delimiter.bracket', '{');
 
     const body = [];
@@ -252,7 +293,7 @@ export class Parser {
 
     this._expect('delimiter.bracket', '}');
 
-    return AST.classBody(body);
+    return AST.classBody(body, this._getPositionFrom(start));
   }
 
   _parseIfStatement() {
@@ -1191,6 +1232,36 @@ export class Parser {
 
   _previous() {
     return this._tokens[this._pos - 1];
+  }
+
+  /**
+   * Get position info from a token
+   */
+  _getTokenPosition(token) {
+    if (!token) return {};
+    return {
+      start: token.start,
+      end: token.end,
+    };
+  }
+
+  /**
+   * Mark the current position (before parsing a construct)
+   */
+  _mark() {
+    const token = this._peek();
+    return token ? token.start : 0;
+  }
+
+  /**
+   * Get position info from start marker to current token
+   */
+  _getPositionFrom(startPos) {
+    const token = this._previous();
+    return {
+      start: startPos,
+      end: token ? token.end : startPos,
+    };
   }
 
   _isAtEnd() {

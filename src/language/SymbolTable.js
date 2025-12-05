@@ -761,6 +761,49 @@ export class SymbolTable {
   }
 
   /**
+   * Find the enclosing class at the given offset
+   * Used to resolve 'this' keyword in completion context
+   * @param {number} offset - Cursor offset
+   * @returns {Symbol|null} - Class symbol or null
+   */
+  findEnclosingClass(offset) {
+    // Walk through all class symbols
+    for (const symbol of this._allSymbols) {
+      if (symbol.kind === SymbolKind.CLASS && symbol.node) {
+        const node = symbol.node;
+
+        // Check if offset is within class body
+        if (node.body && offset >= node.body.start && offset <= node.body.end) {
+          return symbol;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Find the enclosing function or method at the given offset
+   * @param {number} offset - Cursor offset
+   * @returns {Symbol|null} - Function/method symbol or null
+   */
+  findEnclosingFunction(offset) {
+    // Walk through all function/method symbols
+    for (const symbol of this._allSymbols) {
+      if ((symbol.kind === SymbolKind.FUNCTION || symbol.kind === SymbolKind.METHOD) && symbol.node) {
+        const node = symbol.node;
+
+        // For methods, check the value node which contains the function body
+        const bodyNode = symbol.kind === SymbolKind.METHOD ? node.value?.body : node.body;
+
+        if (bodyNode && offset >= bodyNode.start && offset <= bodyNode.end) {
+          return symbol;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
    * Get symbols by kind
    */
   getSymbolsByKind(kind) {

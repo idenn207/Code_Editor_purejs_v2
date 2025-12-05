@@ -382,8 +382,20 @@ export class CompletionProvider {
   // Completion Generators
   // ----------------------------------------
 
+  /**
+   * Resolve 'this' keyword to the current class context
+   * @param {SymbolTable} symbolTable - Symbol table
+   * @param {number} offset - Cursor offset
+   * @returns {Symbol|null} - Class symbol or null
+   */
+  _resolveThisContext(symbolTable, offset) {
+    // Find the enclosing class at the cursor position
+    const classSymbol = symbolTable.findEnclosingClass(offset);
+    return classSymbol;
+  }
+
   _getMemberCompletions(context) {
-    const { memberChain, objectName, prefix } = context;
+    const { memberChain, objectName, prefix, offset } = context;
     const completions = [];
 
     // Support both new memberChain format and legacy objectName format
@@ -396,11 +408,21 @@ export class CompletionProvider {
     // Get symbol table
     const symbolTable = this._languageService.getSymbolTable();
 
-    // Resolve the full member chain
-    let symbol = symbolTable.resolve(chain[0]);
+    // Resolve the first item in the chain
+    let symbol;
+    let chainStartIndex = 0;
 
-    // Walk through the chain to find the final symbol
-    for (let i = 1; i < chain.length && symbol; i++) {
+    // Special handling for 'this' keyword
+    if (chain[0] === 'this') {
+      symbol = this._resolveThisContext(symbolTable, offset);
+      chainStartIndex = 1; // Skip 'this' in the chain
+    } else {
+      symbol = symbolTable.resolve(chain[0]);
+      chainStartIndex = 1; // Normal resolution, skip first item
+    }
+
+    // Walk through the rest of the chain to find the final symbol
+    for (let i = chainStartIndex; i < chain.length && symbol; i++) {
       const memberName = chain[i];
       symbol = symbol.getMember(memberName);
     }
