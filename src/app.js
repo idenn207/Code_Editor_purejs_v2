@@ -4,6 +4,20 @@ import { Editor, isEditContextSupported } from './index.js';
 const SAMPLE_CODE = `// EditContext Code Editor - Auto-Complete Demo
 // Type "user." or "calc." to see member completions!
 
+// Object literal - type "user." to see completions
+const user = {
+  name: "Alice",
+  age: 30,
+  email: "alice@example.com",
+  obj: {
+    str: '',
+    num: 0,
+  },
+  getInfo() {
+    return \`\${this.name} (\${this.age})\`;
+  }
+};
+
 class Calculator {
   constructor(initialValue = 0) {
     this.value = initialValue;
@@ -35,16 +49,6 @@ class Calculator {
 
 // Create instance - type "calc." to see completions
 const calc = new Calculator(10);
-
-// Object literal - type "user." to see completions
-const user = {
-  name: "Alice",
-  age: 30,
-  email: "alice@example.com",
-  getInfo() {
-    return \`\${this.name} (\${this.age})\`;
-  }
-};
 
 // Function example
 function greet(name) {

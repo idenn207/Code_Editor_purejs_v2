@@ -415,18 +415,19 @@ export class HoverProvider {
       return this._createKeywordHover(word, start, end);
     }
 
-    // Check for member expression (e.g., "console.log")
+    // Check for member expression (e.g., "console.log" or "user.obj1.val1")
     const memberContext = this._getMemberContext(text, start);
     if (memberContext) {
-      const fullName = `${memberContext.objectName}.${word}`;
+      const memberChain = memberContext.memberChain;
+      const fullName = [...memberChain, word].join('.');
 
-      // Check built-in docs
-      if (BUILTIN_DOCS[fullName]) {
-        return this._createBuiltinHover(fullName, memberContext.objectName, word, start, end);
+      // Check built-in docs (only for simple cases like console.log)
+      if (memberChain.length === 1 && BUILTIN_DOCS[fullName]) {
+        return this._createBuiltinHover(fullName, memberChain[0], word, start, end);
       }
 
       // Try to resolve from symbol table
-      const memberHover = this._resolveMemberHover(memberContext.objectName, word, start, end);
+      const memberHover = this._resolveMemberHover(memberChain, word, start, end);
       if (memberHover) {
         return memberHover;
       }
@@ -497,9 +498,10 @@ export class HoverProvider {
 
   /**
    * Get member expression context (object name before dot)
+   * Handles chained member access like obj1.obj2.property
    * @param {string} text - Full document text
    * @param {number} wordStart - Start of current word
-   * @returns {{ objectName: string, dotOffset: number }|null}
+   * @returns {{ memberChain: string[], dotOffset: number }|null}
    */
   _getMemberContext(text, wordStart) {
     // Check for dot before word
@@ -525,16 +527,49 @@ export class HoverProvider {
         pos--;
       }
 
-      // Find object name
-      let objectEnd = pos + 1;
-      while (pos >= 0 && this._isWordChar(text[pos])) {
-        pos--;
-      }
-      const objectStart = pos + 1;
+      // Extract member chain backwards (obj1.obj2.obj3)
+      const memberChain = [];
 
-      if (objectStart < objectEnd) {
+      while (pos >= 0) {
+        // Find end of identifier
+        let identEnd = pos + 1;
+
+        // Find start of identifier
+        while (pos >= 0 && this._isWordChar(text[pos])) {
+          pos--;
+        }
+        const identStart = pos + 1;
+
+        if (identStart < identEnd) {
+          memberChain.unshift(text.slice(identStart, identEnd));
+        } else {
+          break;
+        }
+
+        // Skip whitespace
+        while (pos >= 0 && /\s/.test(text[pos])) {
+          pos--;
+        }
+
+        // Check for another dot
+        if (pos >= 0 && text[pos] === '.') {
+          pos--;
+          // Skip optional chaining
+          if (pos >= 0 && text[pos] === '?') {
+            pos--;
+          }
+          // Skip whitespace
+          while (pos >= 0 && /\s/.test(text[pos])) {
+            pos--;
+          }
+        } else {
+          break;
+        }
+      }
+
+      if (memberChain.length > 0) {
         return {
-          objectName: text.slice(objectStart, objectEnd),
+          memberChain,
           dotOffset,
         };
       }
@@ -586,22 +621,31 @@ export class HoverProvider {
 
   /**
    * Resolve hover from symbol table for member expression
+   * Handles chained member access
    */
-  _resolveMemberHover(objectName, memberName, start, end) {
+  _resolveMemberHover(memberChain, memberName, start, end) {
     const symbolTable = this._languageService.getSymbolTable();
-    const objectSymbol = symbolTable.resolve(objectName);
 
-    if (!objectSymbol) {
+    // Resolve the full member chain
+    let symbol = symbolTable.resolve(memberChain[0]);
+
+    // Walk through the chain to find the parent symbol
+    for (let i = 1; i < memberChain.length && symbol; i++) {
+      symbol = symbol.getMember(memberChain[i]);
+    }
+
+    if (!symbol) {
       return null;
     }
 
-    // Find member
-    const member = objectSymbol.getMember(memberName);
+    // Find the final member
+    const member = symbol.getMember(memberName);
     if (!member) {
       return null;
     }
 
-    return this._createSymbolHover(member, objectName, start, end);
+    const parentName = memberChain.join('.');
+    return this._createSymbolHover(member, parentName, start, end);
   }
 
   /**

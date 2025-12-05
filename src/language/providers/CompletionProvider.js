@@ -310,29 +310,17 @@ export class CompletionProvider {
       return { type: 'string', offset };
     }
 
-    // Check for member access (obj. or obj?.)
-    const memberMatch = currentLine.match(/(\w+)\s*(\?\.|\.)(\w*)$/);
-    if (memberMatch) {
-      return {
-        type: 'member',
-        objectName: memberMatch[1],
-        optional: memberMatch[2] === '?.',
-        prefix: memberMatch[3] || '',
-        offset,
-      };
-    }
-
-    // Check for chained member access
-    const chainedMatch = currentLine.match(/\.(\w*)$/);
-    if (chainedMatch) {
-      // Try to find the object in chain
-      const beforeDot = currentLine.slice(0, currentLine.lastIndexOf('.'));
-      const lastWord = beforeDot.match(/(\w+)\s*$/);
+    // Check for member access with full chain (obj1.obj2.obj3.)
+    const chainMatch = currentLine.match(/([\w.]+)\s*(\?\.|\.)(\w*)$/);
+    if (chainMatch) {
+      const fullChain = chainMatch[1];
+      const memberChain = fullChain.split('.').filter(Boolean);
 
       return {
         type: 'member',
-        objectName: lastWord ? lastWord[1] : null,
-        prefix: chainedMatch[1] || '',
+        memberChain: memberChain,
+        optional: chainMatch[2] === '?.',
+        prefix: chainMatch[3] || '',
         offset,
       };
     }
@@ -395,16 +383,27 @@ export class CompletionProvider {
   // ----------------------------------------
 
   _getMemberCompletions(context) {
-    const { objectName, prefix } = context;
+    const { memberChain, objectName, prefix } = context;
     const completions = [];
 
-    if (!objectName) {
+    // Support both new memberChain format and legacy objectName format
+    const chain = memberChain || (objectName ? [objectName] : []);
+
+    if (chain.length === 0) {
       return [];
     }
 
     // Get symbol table
     const symbolTable = this._languageService.getSymbolTable();
-    const symbol = symbolTable.resolve(objectName);
+
+    // Resolve the full member chain
+    let symbol = symbolTable.resolve(chain[0]);
+
+    // Walk through the chain to find the final symbol
+    for (let i = 1; i < chain.length && symbol; i++) {
+      const memberName = chain[i];
+      symbol = symbol.getMember(memberName);
+    }
 
     if (symbol) {
       // Add symbol members
@@ -427,8 +426,8 @@ export class CompletionProvider {
       }
     }
 
-    // Add built-in object methods
-    const builtinCompletions = this._getBuiltinMemberCompletions(objectName);
+    // Add built-in object methods for the first item in chain
+    const builtinCompletions = this._getBuiltinMemberCompletions(chain[0]);
     completions.push(...builtinCompletions);
 
     return completions;
