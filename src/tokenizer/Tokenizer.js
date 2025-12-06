@@ -334,62 +334,6 @@ export class Tokenizer {
 
     return result;
   }
-
-  /**
-   * Tokenize with incremental update
-   * @param {Array<string>} lines - Document lines
-   * @param {number} startLine - First changed line
-   * @returns {Array<Array>} - Updated tokens
-   */
-  tokenizeIncremental(lines, startLine = 0) {
-    // Invalidate from changed line
-    this.invalidateFrom(startLine);
-
-    // Get state from previous line
-    let state;
-    if (startLine > 0) {
-      const prevCached = this._cache.get(startLine - 1);
-      state = prevCached ? prevCached.endState.clone() : TokenizerState.initial();
-    } else {
-      state = TokenizerState.initial();
-    }
-
-    const result = [];
-
-    for (let i = 0; i < lines.length; i++) {
-      if (i < startLine) {
-        // Use cached result for unchanged lines
-        const cached = this._cache.get(i);
-        if (cached) {
-          result.push(cached.tokens);
-          state = cached.endState.clone();
-          continue;
-        }
-      }
-
-      const lineResult = this.getLineTokens(i, lines[i], state);
-      result.push(lineResult.tokens);
-
-      // Check if state stabilized (matches next cached state)
-      const nextCached = this._cache.get(i + 1);
-      if (nextCached && lineResult.endState.equals(nextCached.startState)) {
-        // State stabilized - remaining cached lines are still valid
-        for (let j = i + 1; j < lines.length; j++) {
-          const c = this._cache.get(j);
-          if (c) {
-            result.push(c.tokens);
-          } else {
-            break;
-          }
-        }
-        break;
-      }
-
-      state = lineResult.endState;
-    }
-
-    return result;
-  }
 }
 
 // ============================================
