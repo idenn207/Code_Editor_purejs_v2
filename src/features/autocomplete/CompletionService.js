@@ -520,14 +520,31 @@ export class CompletionService {
     }
 
     // Check for pseudo-class/element (after : in selectors, not property values)
-    // Only match if not inside a declaration (no property-name before the colon)
-    const pseudoMatch = beforeCursor.match(/(?:^|[{\s,>+~])[\w.-]*(:+)\s*(\w*)$/);
+    // Match patterns like: "a:", ".class:", "#id:", "div:hover:", etc.
+    // The key is that we're NOT inside a declaration block property value
+    const pseudoMatch = beforeCursor.match(/(::?)\s*(\w*)$/);
     if (pseudoMatch) {
-      const isDoubleColon = pseudoMatch[1] === '::';
-      if (isDoubleColon) {
-        return CSS_PSEUDO_ELEMENTS.map((p) => p.slice(2)); // Remove :: prefix
+      // Make sure we're in a selector context, not a property value
+      // Check if there's an unclosed { before the colon (we're in a rule block)
+      const lastOpenBrace = beforeCursor.lastIndexOf('{');
+      const lastCloseBrace = beforeCursor.lastIndexOf('}');
+      const lastSemicolon = beforeCursor.lastIndexOf(';');
+
+      // We're in selector context if:
+      // 1. No braces at all, or
+      // 2. Last } is after last { (we're outside a rule block), or
+      // 3. We're at the start of a line in a selector
+      const inSelectorContext = lastOpenBrace === -1 ||
+                                lastCloseBrace > lastOpenBrace ||
+                                (lastSemicolon > lastOpenBrace && beforeCursor.slice(lastSemicolon).match(/^\s*[\w.#\[\]:,>+~\s-]*$/));
+
+      if (inSelectorContext || !CSS_PROPERTIES.includes(beforeCursor.match(/([\w-]+)\s*:/)?.[ 1] || '')) {
+        const isDoubleColon = pseudoMatch[1] === '::';
+        if (isDoubleColon) {
+          return CSS_PSEUDO_ELEMENTS.map((p) => p.slice(2)); // Remove :: prefix
+        }
+        return CSS_PSEUDO_CLASSES.map((p) => p.replace(/^:/, '')); // Remove : prefix
       }
-      return CSS_PSEUDO_CLASSES.map((p) => p.replace(/^:/, '')); // Remove : prefix
     }
 
     // Check if in declaration block (after { or ;) - property completion
@@ -553,19 +570,26 @@ export class CompletionService {
   }
 
   _getCSSPropertyValues(propertyName) {
+    let values = [];
+    let functions = [];
+
     // Specific property values
     if (CSS_PROPERTY_VALUES[propertyName]) {
-      return [...CSS_PROPERTY_VALUES[propertyName], ...CSS_COMMON_VALUES];
+      values = [...CSS_PROPERTY_VALUES[propertyName], ...CSS_COMMON_VALUES];
+    }
+    // Color properties - include colors and color functions
+    else if (propertyName.includes('color') || propertyName === 'background') {
+      values = [...CSS_COLORS, ...CSS_COMMON_VALUES];
+    }
+    // Default common values
+    else {
+      values = [...CSS_COMMON_VALUES];
     }
 
-    // Color properties
-    if (propertyName.includes('color') || propertyName === 'background') {
-      return [...CSS_COLORS, ...CSS_FUNCTIONS.filter((f) => f.startsWith('rgb') || f.startsWith('hsl'))];
-    }
-
-    // Transform
+    // Determine which functions to include based on property
     if (propertyName === 'transform') {
-      return CSS_FUNCTIONS.filter(
+      // Transform-specific functions
+      functions = CSS_FUNCTIONS.filter(
         (f) =>
           f.startsWith('translate') ||
           f.startsWith('rotate') ||
@@ -573,10 +597,53 @@ export class CompletionService {
           f.startsWith('skew') ||
           f.startsWith('matrix')
       );
+    } else if (propertyName.includes('color') || propertyName === 'background' ||
+               propertyName === 'border-color' || propertyName === 'outline-color') {
+      // Color-related functions
+      functions = CSS_FUNCTIONS.filter(
+        (f) =>
+          f.startsWith('rgb') ||
+          f.startsWith('hsl') ||
+          f.startsWith('linear-gradient') ||
+          f.startsWith('radial-gradient') ||
+          f.startsWith('conic-gradient') ||
+          f === 'var('
+      );
+    } else if (propertyName === 'background-image') {
+      // Background image functions
+      functions = CSS_FUNCTIONS.filter(
+        (f) =>
+          f.startsWith('url') ||
+          f.startsWith('linear-gradient') ||
+          f.startsWith('radial-gradient') ||
+          f.startsWith('conic-gradient') ||
+          f === 'var('
+      );
+    } else if (propertyName === 'width' || propertyName === 'height' ||
+               propertyName === 'min-width' || propertyName === 'min-height' ||
+               propertyName === 'max-width' || propertyName === 'max-height' ||
+               propertyName.includes('margin') || propertyName.includes('padding') ||
+               propertyName.includes('gap')) {
+      // Size-related functions
+      functions = CSS_FUNCTIONS.filter(
+        (f) =>
+          f === 'calc(' ||
+          f === 'min(' ||
+          f === 'max(' ||
+          f === 'clamp(' ||
+          f === 'var('
+      );
+    } else {
+      // Default: include common utility functions
+      functions = CSS_FUNCTIONS.filter(
+        (f) =>
+          f === 'var(' ||
+          f === 'calc('
+      );
     }
 
-    // Default common values
-    return CSS_COMMON_VALUES;
+    // Return values first, then functions at the end
+    return [...values, ...functions];
   }
 
   // ----------------------------------------
@@ -593,22 +660,34 @@ export class CompletionService {
     // Helper to get the label for comparison (handles both string and object items)
     const getLabel = (item) => (typeof item === 'string' ? item : item.label);
 
+    // Helper to check if item is a CSS function (ends with '(')
+    const isFunction = (item) => {
+      const label = getLabel(item);
+      return label.endsWith('(');
+    };
+
     // Filter by prefix
     const filtered = items.filter((item) => {
       const label = getLabel(item);
       return label.toLowerCase().startsWith(lowerPrefix);
     });
 
-    // Sort: exact matches first, then alphabetically
+    // Sort: exact matches first, then non-functions alphabetically, then functions at end
     filtered.sort((a, b) => {
       const aLabel = getLabel(a).toLowerCase();
       const bLabel = getLabel(b).toLowerCase();
+      const aIsFunction = isFunction(a);
+      const bIsFunction = isFunction(b);
 
-      // Exact match priority
-      if (aLabel === lowerPrefix && bLabel !== lowerPrefix) return -1;
-      if (bLabel === lowerPrefix && aLabel !== lowerPrefix) return 1;
+      // Exact match priority (but functions still go last)
+      if (aLabel === lowerPrefix && bLabel !== lowerPrefix && !aIsFunction) return -1;
+      if (bLabel === lowerPrefix && aLabel !== lowerPrefix && !bIsFunction) return 1;
 
-      // Alphabetical
+      // Functions go to the end
+      if (aIsFunction && !bIsFunction) return 1;
+      if (!aIsFunction && bIsFunction) return -1;
+
+      // Alphabetical within same category
       return aLabel.localeCompare(bLabel);
     });
 
