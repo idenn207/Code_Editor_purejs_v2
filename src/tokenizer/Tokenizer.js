@@ -240,21 +240,34 @@ export class Tokenizer {
   _transition(state, nextState) {
     const newState = state.clone();
 
-    if (nextState === '@pop') {
-      const prevState = newState.stack.pop() || 'root';
-      newState.name = prevState;
-    } else if (nextState === '@push') {
-      newState.stack.push(newState.name);
-    } else if (nextState.startsWith('@')) {
-      // Named state transition
-      newState.stack.push(newState.name);
-      newState.name = nextState.slice(1);
-    } else {
-      newState.stack.push(newState.name);
-      newState.name = nextState;
+    // Handle multiple transitions (e.g., "@pop @pop")
+    if (typeof nextState === 'string' && nextState.includes(' ')) {
+      const transitions = nextState.split(/\s+/);
+      for (const t of transitions) {
+        this._applyTransition(newState, t);
+      }
+      return newState;
     }
 
-    return newState;
+    return this._applyTransition(newState, nextState);
+  }
+
+  _applyTransition(state, nextState) {
+    if (nextState === '@pop') {
+      const prevState = state.stack.pop() || 'root';
+      state.name = prevState;
+    } else if (nextState === '@push') {
+      state.stack.push(state.name);
+    } else if (nextState.startsWith('@')) {
+      // Named state transition
+      state.stack.push(state.name);
+      state.name = nextState.slice(1);
+    } else if (nextState) {
+      state.stack.push(state.name);
+      state.name = nextState;
+    }
+
+    return state;
   }
 
   // ----------------------------------------
