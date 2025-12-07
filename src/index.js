@@ -23,6 +23,7 @@ export { Tokenizer, TokenizerState, TokenType } from './tokenizer/Tokenizer.js';
 
 // Features
 export { AutoCloseFeature } from './features/autoClose/AutoCloseFeature.js';
+export { AutoIndentFeature } from './features/autoIndent/AutoIndentFeature.js';
 
 // Version
 export const VERSION = '2.0.0';

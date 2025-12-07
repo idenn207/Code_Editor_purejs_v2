@@ -1,4 +1,4 @@
-import { Editor, isEditContextSupported, AutoCloseFeature } from './index.js';
+import { Editor, isEditContextSupported, AutoCloseFeature, AutoIndentFeature } from './index.js';
 
 // Sample code for basic syntax highlighting demo
 const SAMPLE_CODE = `// V2 Minimal Code Editor
@@ -64,6 +64,12 @@ const editor = new Editor(container, {
 // Enable Auto-Close feature
 const autoClose = new AutoCloseFeature(editor);
 
+// Enable Auto-Indent feature
+const autoIndent = new AutoIndentFeature(editor, {
+  tabSize: 2,
+  useSpaces: true,
+});
+
 // UI Elements
 const inputModeEl = document.getElementById('input-mode');
 const ecSupportEl = document.getElementById('ec-support');
@@ -115,5 +121,7 @@ editor.focus();
 // Expose for debugging
 window.editor = editor;
 window.autoClose = autoClose;
+window.autoIndent = autoIndent;
 console.log('Editor instance available as window.editor');
 console.log('AutoCloseFeature available as window.autoClose');
+console.log('AutoIndentFeature available as window.autoIndent');
