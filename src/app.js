@@ -1,4 +1,4 @@
-import { Editor, isEditContextSupported } from './index.js';
+import { Editor, isEditContextSupported, AutoCloseFeature } from './index.js';
 
 // Sample code for basic syntax highlighting demo
 const SAMPLE_CODE = `// V2 Minimal Code Editor
@@ -61,6 +61,9 @@ const editor = new Editor(container, {
   lineHeight: 22,
 });
 
+// Enable Auto-Close feature
+const autoClose = new AutoCloseFeature(editor);
+
 // UI Elements
 const inputModeEl = document.getElementById('input-mode');
 const ecSupportEl = document.getElementById('ec-support');
@@ -111,4 +114,6 @@ editor.focus();
 
 // Expose for debugging
 window.editor = editor;
+window.autoClose = autoClose;
 console.log('Editor instance available as window.editor');
+console.log('AutoCloseFeature available as window.autoClose');

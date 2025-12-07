@@ -21,6 +21,9 @@ export { EditorView } from './view/EditorView.js';
 export { JavaScriptGrammar } from './tokenizer/grammars/javascript.js';
 export { Tokenizer, TokenizerState, TokenType } from './tokenizer/Tokenizer.js';
 
+// Features
+export { AutoCloseFeature } from './features/autoClose/AutoCloseFeature.js';
+
 // Version
 export const VERSION = '2.0.0';
 

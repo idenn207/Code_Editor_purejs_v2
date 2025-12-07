@@ -121,6 +121,15 @@ export class EditContextHandler {
         this._syncEditContextText();
       }
     });
+
+    // Sync EditContext selection when editor selection changes programmatically
+    // This handles cases where features (like AutoCloseFeature) call editor.setSelection()
+    // directly without going through EditContextHandler
+    this._editor.on('selectionChange', () => {
+      if (!this._isComposing) {
+        this._syncEditContextSelection();
+      }
+    });
   }
 
   // ----------------------------------------
