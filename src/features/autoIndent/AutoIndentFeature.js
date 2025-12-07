@@ -18,6 +18,12 @@ const INDENT_TRIGGERS = new Set(['{', '(', '[', ':']);
 // Characters that indicate we should dedent
 const DEDENT_TRIGGERS = new Set(['}', ')', ']']);
 
+// HTML void elements (self-closing, don't need closing tags)
+const HTML_VOID_ELEMENTS = new Set([
+  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+  'link', 'meta', 'param', 'source', 'track', 'wbr',
+]);
+
 // ============================================
 // Class Definition
 // ============================================
@@ -106,12 +112,24 @@ export class AutoIndentFeature {
     // Check last non-whitespace character before cursor
     const trimmedBefore = beforeCursor.trimEnd();
     const lastChar = trimmedBefore.slice(-1);
-    const shouldIncrease = INDENT_TRIGGERS.has(lastChar);
+    let shouldIncrease = INDENT_TRIGGERS.has(lastChar);
+
+    // Check for HTML opening tag without closing tag
+    const language = this._editor.getLanguage();
+    const htmlIndentContext = this._getHTMLIndentContext(beforeCursor, afterCursor, language);
+    if (htmlIndentContext.shouldIncrease) {
+      shouldIncrease = true;
+    }
 
     // Check first non-whitespace character after cursor
     const trimmedAfter = afterCursor.trimStart();
     const firstCharAfter = trimmedAfter[0];
-    const hasClosingBracket = DEDENT_TRIGGERS.has(firstCharAfter);
+    let hasClosingBracket = DEDENT_TRIGGERS.has(firstCharAfter);
+
+    // Check for HTML closing tag after cursor
+    if (htmlIndentContext.hasClosingTag) {
+      hasClosingBracket = true;
+    }
 
     // Calculate new indentation
     let newIndent = currentIndent;
@@ -119,7 +137,7 @@ export class AutoIndentFeature {
       newIndent = currentIndent + this._getIndentString();
     }
 
-    // Special case: Enter between paired brackets like {|}
+    // Special case: Enter between paired brackets like {|} or <div>|</div>
     if (shouldIncrease && hasClosingBracket) {
       this._handleBracketEnter(start, end, currentIndent);
       return;
@@ -170,6 +188,41 @@ export class AutoIndentFeature {
   _getIndentation(line) {
     const match = line.match(/^(\s*)/);
     return match ? match[1] : '';
+  }
+
+  /**
+   * Get HTML-specific indent context
+   * @param {string} beforeCursor - Text before cursor
+   * @param {string} afterCursor - Text after cursor
+   * @param {string} language - Current language
+   * @returns {{ shouldIncrease: boolean, hasClosingTag: boolean }}
+   */
+  _getHTMLIndentContext(beforeCursor, afterCursor, language) {
+    const result = { shouldIncrease: false, hasClosingTag: false };
+
+    if (language !== 'html') {
+      return result;
+    }
+
+    // Check if line ends with an opening tag: <div>, <span class="foo">, etc.
+    // Pattern: <tagname ...> at the end (not self-closing />)
+    const openingTagMatch = beforeCursor.match(/<(\w+)(?:\s+[^>]*)?>$/);
+    if (openingTagMatch) {
+      const tagName = openingTagMatch[1].toLowerCase();
+      // Don't indent after void elements
+      if (!HTML_VOID_ELEMENTS.has(tagName)) {
+        result.shouldIncrease = true;
+      }
+    }
+
+    // Check if there's a closing tag immediately after cursor
+    // Pattern: </tagname> at the start of afterCursor
+    const closingTagMatch = afterCursor.match(/^\s*<\/(\w+)>/);
+    if (closingTagMatch) {
+      result.hasClosingTag = true;
+    }
+
+    return result;
   }
 
   /**

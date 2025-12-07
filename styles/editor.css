@@ -440,8 +440,10 @@
   background: var(--ec-autocomplete-hover);
 }
 
-.ec-autocomplete-item.ec-autocomplete-item-selected {
+.ec-autocomplete-item.ec-autocomplete-item-selected,
+.ec-autocomplete-item.selected {
   background: var(--ec-autocomplete-selected);
+  color: #fff;
 }
 
 .ec-autocomplete-icon {
@@ -714,7 +716,8 @@
   --ec-hover-code: #001080;
 }
 
-.ec-editor.ec-theme-light .ec-autocomplete-item.ec-autocomplete-item-selected {
+.ec-editor.ec-theme-light .ec-autocomplete-item.ec-autocomplete-item-selected,
+.ec-editor.ec-theme-light .ec-autocomplete-item.selected {
   color: white;
 }
 

@@ -24,6 +24,12 @@ const CLOSE_CHARS = new Set([')', ']', '}', '"', "'", '`']);
 // Characters that, when appearing after cursor, should NOT trigger auto-close
 const NO_AUTOCLOSE_BEFORE = /[\w]/;
 
+// HTML void elements (self-closing, don't need closing tags)
+const HTML_VOID_ELEMENTS = new Set([
+  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+  'link', 'meta', 'param', 'source', 'track', 'wbr',
+]);
+
 // ============================================
 // Class Definition
 // ============================================
@@ -45,6 +51,7 @@ export class AutoCloseFeature {
   _boundHandleKeyDown = null;
   _boundHandleInput = null;
   _lastInsertedPair = null;
+  _pendingHTMLTagClose = null;
 
   // ----------------------------------------
   // Constructor
@@ -103,6 +110,11 @@ export class AutoCloseFeature {
       }
     }
 
+    // Handle '>' for HTML tag auto-close
+    if (key === '>' && this._editor.getLanguage() === 'html') {
+      this._prepareHTMLTagClose();
+    }
+
     // Handle opening characters - mark for auto-close
     if (PAIRS[key]) {
       this._prepareAutoClose(key);
@@ -111,6 +123,20 @@ export class AutoCloseFeature {
 
   _handleInput(event) {
     if (!this._enabled) return;
+
+    // Check if we should auto-close HTML tag after this input
+    if (this._pendingHTMLTagClose) {
+      const tagName = this._pendingHTMLTagClose;
+      this._pendingHTMLTagClose = null;
+
+      const text = this._editor.getValue();
+      const { end } = this._editor.getSelection();
+
+      // Verify '>' was actually inserted
+      if (text[end - 1] === '>') {
+        this._insertHTMLClosingTag(tagName, end);
+      }
+    }
 
     // Check if we should auto-close after this input
     if (this._lastInsertedPair) {
@@ -174,6 +200,81 @@ export class AutoCloseFeature {
     this._editor.document.replaceRange(currentPos, currentPos, closeChar);
 
     // Move cursor back between the pair
+    this._editor.setSelection(currentPos, currentPos);
+  }
+
+  // ----------------------------------------
+  // HTML Tag Auto-Close Logic
+  // ----------------------------------------
+
+  /**
+   * Prepare to auto-close an HTML tag when '>' is typed
+   */
+  _prepareHTMLTagClose() {
+    const { start, end } = this._editor.getSelection();
+
+    // Only handle when no selection
+    if (start !== end) {
+      this._pendingHTMLTagClose = null;
+      return;
+    }
+
+    const text = this._editor.getValue();
+    const beforeCursor = text.slice(0, end);
+    const afterCursor = text.slice(end);
+
+    // Find the last unclosed < tag
+    // Pattern: <tagname or <tagname attributes (not already closed with > or />)
+    const tagMatch = beforeCursor.match(/<(\w+)(?:\s+[^>]*)?$/);
+
+    if (tagMatch) {
+      const tagName = tagMatch[1].toLowerCase();
+
+      // Don't auto-close void elements
+      if (HTML_VOID_ELEMENTS.has(tagName)) {
+        this._pendingHTMLTagClose = null;
+        return;
+      }
+
+      // Don't auto-close if it's a closing tag </tag
+      if (beforeCursor.match(/<\/\w*$/)) {
+        this._pendingHTMLTagClose = null;
+        return;
+      }
+
+      // Don't auto-close if there's already a closing tag right after cursor
+      // This handles autocomplete inserting the full tag
+      const closingTagPattern = new RegExp(`^</${tagName}>`, 'i');
+      if (closingTagPattern.test(afterCursor)) {
+        this._pendingHTMLTagClose = null;
+        return;
+      }
+
+      this._pendingHTMLTagClose = tagName;
+    } else {
+      this._pendingHTMLTagClose = null;
+    }
+  }
+
+  /**
+   * Insert the closing HTML tag
+   */
+  _insertHTMLClosingTag(tagName, currentPos) {
+    const text = this._editor.getValue();
+    const afterCursor = text.slice(currentPos);
+
+    // Double-check: Don't insert if closing tag already exists
+    const closingTagPattern = new RegExp(`^</${tagName}>`, 'i');
+    if (closingTagPattern.test(afterCursor)) {
+      return;
+    }
+
+    const closingTag = `</${tagName}>`;
+
+    // Insert closing tag
+    this._editor.document.replaceRange(currentPos, currentPos, closingTag);
+
+    // Keep cursor between opening and closing tags
     this._editor.setSelection(currentPos, currentPos);
   }
 

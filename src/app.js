@@ -1,4 +1,13 @@
-import { AutoCloseFeature, AutoIndentFeature, BracketMatchFeature, Editor, IndentGuideFeature, isEditContextSupported, SearchFeature } from './index.js';
+import {
+  AutoCloseFeature,
+  AutocompleteFeature,
+  AutoIndentFeature,
+  BracketMatchFeature,
+  Editor,
+  IndentGuideFeature,
+  isEditContextSupported,
+  SearchFeature,
+} from './index.js';
 
 // ============================================
 // Sample Code for Syntax Highlighting Demo
@@ -205,16 +214,19 @@ nav > ul > li.active > a {
 `;
 
 // Default sample code (JavaScript)
-const SAMPLE_CODE = SAMPLE_CODE_JS;
+const SAMPLE_CODE = SAMPLE_CODE_CSS;
 
 // Initialize editor
 const container = document.getElementById('editor-container');
 const editor = new Editor(container, {
   value: SAMPLE_CODE,
-  language: 'javascript',
+  language: 'css',
   fontSize: 14,
   lineHeight: 22,
 });
+
+// Enable Autocomplete feature (must be before AutoIndent for Enter key priority)
+const autocomplete = new AutocompleteFeature(editor);
 
 // Enable Auto-Close feature
 const autoClose = new AutoCloseFeature(editor);
@@ -287,6 +299,7 @@ editor.focus();
 // Expose for debugging
 window.editor = editor;
 window.autoClose = autoClose;
+window.autocomplete = autocomplete;
 window.autoIndent = autoIndent;
 window.bracketMatch = bracketMatch;
 window.indentGuide = indentGuide;
@@ -329,12 +342,14 @@ window.SAMPLE_CODE_CSS = SAMPLE_CODE_CSS;
 
 console.log('Editor instance available as window.editor');
 console.log('AutoCloseFeature available as window.autoClose');
+console.log('AutocompleteFeature available as window.autocomplete');
 console.log('AutoIndentFeature available as window.autoIndent');
 console.log('BracketMatchFeature available as window.bracketMatch');
 console.log('IndentGuideFeature available as window.indentGuide');
 console.log('SearchFeature available as window.search');
 console.log('');
 console.log('Search: Ctrl+F (find), Ctrl+H (replace)');
+console.log('Autocomplete: Ctrl+Space (trigger), Arrow keys (navigate), Enter/Tab (select)');
 console.log('');
 console.log('Sample code available: SAMPLE_CODE_JS, SAMPLE_CODE_HTML, SAMPLE_CODE_CSS');
 console.log('To test HTML: editor.setLanguage("html"); editor.setValue(SAMPLE_CODE_HTML);');
