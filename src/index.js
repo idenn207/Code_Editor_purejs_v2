@@ -24,6 +24,7 @@ export { Tokenizer, TokenizerState, TokenType } from './tokenizer/Tokenizer.js';
 // Features
 export { AutoCloseFeature } from './features/autoClose/AutoCloseFeature.js';
 export { AutoIndentFeature } from './features/autoIndent/AutoIndentFeature.js';
+export { BracketMatchFeature } from './features/bracketMatch/BracketMatchFeature.js';
 
 // Version
 export const VERSION = '2.0.0';

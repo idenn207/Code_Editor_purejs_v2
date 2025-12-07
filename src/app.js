@@ -1,4 +1,4 @@
-import { Editor, isEditContextSupported, AutoCloseFeature, AutoIndentFeature } from './index.js';
+import { Editor, isEditContextSupported, AutoCloseFeature, AutoIndentFeature, BracketMatchFeature } from './index.js';
 
 // Sample code for basic syntax highlighting demo
 const SAMPLE_CODE = `// V2 Minimal Code Editor
@@ -70,6 +70,9 @@ const autoIndent = new AutoIndentFeature(editor, {
   useSpaces: true,
 });
 
+// Enable Bracket Match feature
+const bracketMatch = new BracketMatchFeature(editor);
+
 // UI Elements
 const inputModeEl = document.getElementById('input-mode');
 const ecSupportEl = document.getElementById('ec-support');
@@ -122,6 +125,8 @@ editor.focus();
 window.editor = editor;
 window.autoClose = autoClose;
 window.autoIndent = autoIndent;
+window.bracketMatch = bracketMatch;
 console.log('Editor instance available as window.editor');
 console.log('AutoCloseFeature available as window.autoClose');
 console.log('AutoIndentFeature available as window.autoIndent');
+console.log('BracketMatchFeature available as window.bracketMatch');

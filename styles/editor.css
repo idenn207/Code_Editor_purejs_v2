@@ -449,6 +449,35 @@
 }
 
 /* ============================================
+   Bracket Match Highlight
+   ============================================ */
+
+.ec-bracket-match-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.ec-bracket-match {
+  position: absolute;
+  background: rgba(0, 100, 0, 0.3);
+  border: 1px solid rgba(0, 180, 0, 0.6);
+  border-radius: 2px;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+/* Light theme bracket match */
+.ec-editor.ec-theme-light .ec-bracket-match {
+  background: rgba(0, 150, 0, 0.15);
+  border-color: rgba(0, 120, 0, 0.5);
+}
+
+/* ============================================
    Hidden Textarea (Fallback Mode)
    ============================================ */
 
