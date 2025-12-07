@@ -266,7 +266,8 @@ export class EditorView {
 
   // FIX Issue 1 & 2: Corrected cursor position calculation
   _renderCursor() {
-    const { start, end } = this._editor.getSelection();
+    // Use raw selection - 'end' is always the cursor position (where user is typing)
+    const { end } = this._editor.getRawSelection();
     const doc = this._editor.document;
 
     // Use selection end as cursor position
@@ -408,7 +409,8 @@ export class EditorView {
    * @returns {DOMRect}
    */
   getCursorRect() {
-    const { end } = this._editor.getSelection();
+    // Use raw selection - 'end' is always the cursor position
+    const { end } = this._editor.getRawSelection();
     return this.getCharacterRect(end);
   }
 
@@ -416,7 +418,8 @@ export class EditorView {
    * Scroll to ensure cursor is visible
    */
   scrollToCursor() {
-    const { end } = this._editor.getSelection();
+    // Use raw selection - 'end' is always the cursor position
+    const { end } = this._editor.getRawSelection();
     const pos = this._editor.document.offsetToPosition(end);
 
     const cursorTop = pos.line * this._lineHeight;

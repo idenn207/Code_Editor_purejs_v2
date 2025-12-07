@@ -332,13 +332,19 @@ export class EditContextHandler {
 
   _handleArrowKey(key, shiftKey, modKey) {
     const doc = this._editor.document;
-    let { start, end } = this._editor.getSelection();
+    // Use raw selection to preserve anchor/cursor direction for selection extension
+    let { start, end } = this._editor.getRawSelection();
+
+    // For collapse logic (no shift), we need normalized min/max values
+    const selMin = Math.min(start, end);
+    const selMax = Math.max(start, end);
 
     if (!shiftKey && start !== end) {
+      // Collapse selection: Left/Up goes to left edge, Right/Down goes to right edge
       if (key === 'ArrowLeft' || key === 'ArrowUp') {
-        end = start;
+        start = end = selMin;
       } else {
-        start = end;
+        start = end = selMax;
       }
     }
 

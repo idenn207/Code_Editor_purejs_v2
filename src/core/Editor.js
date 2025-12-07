@@ -136,6 +136,16 @@ export class Editor {
   }
 
   /**
+   * Get raw selection without normalization
+   * Use this when you need to know the actual anchor vs cursor position
+   * (e.g., for selection extension with arrow keys)
+   * @returns {{ start: number, end: number }}
+   */
+  getRawSelection() {
+    return { ...this._selection };
+  }
+
+  /**
    * Set selection
    * @param {number} start - Selection start offset
    * @param {number} end - Selection end offset
