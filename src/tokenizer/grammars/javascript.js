@@ -8,7 +8,8 @@
 // ============================================
 
 export const TokenType = Object.freeze({
-  KEYWORD: 'keyword',
+  KEYWORD: 'keyword',                    // Blue keywords (declaration/modifier)
+  KEYWORD_CONTROL: 'keyword.control',    // Purple keywords (control flow)
   KEYWORD_LITERAL: 'keyword.literal',
   STRING: 'string',
   STRING_TEMPLATE: 'string.template',
@@ -39,44 +40,24 @@ export const JavaScriptGrammar = {
   // Keyword Lists
   // ----------------------------------------
 
+  // Blue keywords - declarations, modifiers, operators
   keywords: [
-    'break',
-    'case',
-    'catch',
     'class',
     'const',
-    'continue',
-    'debugger',
-    'default',
     'delete',
-    'do',
-    'else',
-    'export',
     'extends',
-    'finally',
-    'for',
     'function',
-    'if',
-    'import',
     'in',
     'instanceof',
     'let',
     'new',
-    'return',
     'static',
     'super',
-    'switch',
     'this',
-    'throw',
-    'try',
     'typeof',
     'var',
     'void',
-    'while',
-    'with',
-    'yield',
     'async',
-    'await',
     'implements',
     'interface',
     'package',
@@ -87,6 +68,31 @@ export const JavaScriptGrammar = {
     'get',
     'set',
     'of',
+  ],
+
+  // Purple keywords - control flow
+  controlKeywords: [
+    'break',
+    'case',
+    'catch',
+    'continue',
+    'debugger',
+    'default',
+    'do',
+    'else',
+    'export',
+    'finally',
+    'for',
+    'if',
+    'import',
+    'return',
+    'switch',
+    'throw',
+    'try',
+    'while',
+    'with',
+    'yield',
+    'await',
   ],
 
   typeKeywords: ['true', 'false', 'null', 'undefined', 'NaN', 'Infinity'],
@@ -194,6 +200,7 @@ export const JavaScriptGrammar = {
         {
           cases: {
             '@keywords': TokenType.KEYWORD,
+            '@controlKeywords': TokenType.KEYWORD_CONTROL,
             '@typeKeywords': TokenType.KEYWORD_LITERAL,
             '@default': TokenType.IDENTIFIER,
           },

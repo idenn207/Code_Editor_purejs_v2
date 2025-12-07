@@ -12,20 +12,22 @@
 
 export const CSSTokenType = Object.freeze({
   // Selectors
-  SELECTOR_TAG: 'tag',
-  SELECTOR_CLASS: 'attribute.name',
-  SELECTOR_ID: 'attribute.name',
-  SELECTOR_PSEUDO: 'keyword',
-  SELECTOR_ATTRIBUTE: 'attribute.name',
+  SELECTOR_TAG: 'selector.tag',
+  SELECTOR_CLASS: 'selector.class',
+  SELECTOR_ID: 'selector.id',
+  SELECTOR_PSEUDO: 'selector.pseudo',
+  SELECTOR_ATTRIBUTE: 'selector.attribute',
 
   // At-rules
-  AT_RULE: 'keyword',
+  AT_RULE: 'at-rule',
+  AT_RULE_NAME: 'at-rule.name',      // keyframes name, etc.
+  AT_RULE_KEYWORD: 'at-rule.keyword', // and, or, not, only, screen
 
   // Properties and Values
-  PROPERTY: 'attribute.name',
-  VALUE: 'attribute.value',
+  PROPERTY: 'property',
+  VALUE: 'value',
   VALUE_NUMBER: 'number',
-  VALUE_UNIT: 'number',
+  VALUE_UNIT: 'unit',
   VALUE_HEX: 'number.hex',
 
   // Functions
@@ -43,7 +45,7 @@ export const CSSTokenType = Object.freeze({
   DELIMITER_BRACKET: 'delimiter.bracket',
 
   // Important
-  IMPORTANT: 'keyword',
+  IMPORTANT: 'keyword.important',
 
   // Standard
   WHITESPACE: 'whitespace',
@@ -185,8 +187,15 @@ export const CSSGrammar = {
       // Comments inside at-rule
       [/\/\*/, CSSTokenType.COMMENT, '@comment'],
 
-      // Keyframes name
-      [/[a-zA-Z_][\w-]*/, CSSTokenType.VALUE],
+      // URL function (MUST come before generic identifier)
+      [/url\s*\(/, CSSTokenType.FUNCTION, '@urlValue'],
+
+      // String in at-rule (e.g., @import "url")
+      [/"/, CSSTokenType.STRING, '@doubleString'],
+      [/'/, CSSTokenType.STRING, '@singleString'],
+
+      // Media query keywords (MUST come before generic identifier)
+      [/\b(?:and|or|not|only|screen|print|all)\b/, CSSTokenType.AT_RULE_KEYWORD],
 
       // Media query features
       [/\(/, CSSTokenType.DELIMITER_BRACKET, '@mediaFeature'],
@@ -197,16 +206,11 @@ export const CSSGrammar = {
       // At-rule statement end (e.g., @import "file.css";)
       [/;/, CSSTokenType.DELIMITER, '@pop'],
 
-      // String in at-rule (e.g., @import "url")
-      [/"/, CSSTokenType.STRING, '@doubleString'],
-      [/'/, CSSTokenType.STRING, '@singleString'],
-
-      // URL function
-      [/url\s*\(/, CSSTokenType.FUNCTION, '@urlValue'],
-
       // Operators
       [/[,:]/, CSSTokenType.DELIMITER],
-      [/and|or|not|only/, CSSTokenType.AT_RULE],
+
+      // Generic identifier (keyframes name, animation name, etc.)
+      [/[a-zA-Z_][\w-]*/, CSSTokenType.AT_RULE_NAME],
 
       // Fallback
       [/./, CSSTokenType.PLAIN],
@@ -218,15 +222,14 @@ export const CSSGrammar = {
     mediaFeature: [
       [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
 
-      // Feature name
+      // Number with unit (MUST come before feature name to match 768px as one token)
+      [/[-+]?(\d+\.?\d*|\.\d+)(px|em|rem|vh|vw|vmin|vmax|%|ch|ex|cm|mm|in|pt|pc)?/, CSSTokenType.VALUE_NUMBER],
+
+      // Feature name (min-width, max-height, etc.)
       [/[a-zA-Z_][\w-]*/, CSSTokenType.PROPERTY],
 
       // Colon
       [/:/, CSSTokenType.DELIMITER],
-
-      // Number with unit
-      [/\d+(\.\d+)?/, CSSTokenType.VALUE_NUMBER],
-      [/(px|em|rem|vh|vw|%)/, CSSTokenType.VALUE_UNIT],
 
       // Close parenthesis
       [/\)/, CSSTokenType.DELIMITER_BRACKET, '@pop'],
@@ -317,8 +320,8 @@ export const CSSGrammar = {
       // Comments
       [/\/\*/, CSSTokenType.COMMENT, '@comment'],
 
-      // CSS custom property (--variable-name)
-      [/--[a-zA-Z_][\w-]*/, CSSTokenType.PROPERTY],
+      // CSS custom property (--variable-name) - MUST transition to afterProperty
+      [/--[a-zA-Z_][\w-]*/, CSSTokenType.PROPERTY, '@afterProperty'],
 
       // Property name (vendor prefixes supported)
       [/-?[a-zA-Z_][\w-]*/, CSSTokenType.PROPERTY, '@afterProperty'],

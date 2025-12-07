@@ -205,7 +205,7 @@ nav > ul > li.active > a {
 `;
 
 // Default sample code (JavaScript)
-const SAMPLE_CODE = SAMPLE_CODE_CSS;
+const SAMPLE_CODE = SAMPLE_CODE_JS;
 
 // Initialize editor
 const container = document.getElementById('editor-container');

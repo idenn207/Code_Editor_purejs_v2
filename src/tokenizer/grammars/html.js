@@ -93,8 +93,8 @@ export const HTMLGrammar = {
       // Whitespace
       [/[ \t\r\n]+/, HTMLTokenType.WHITESPACE],
 
-      // DOCTYPE declaration
-      [/<!DOCTYPE/i, HTMLTokenType.METATAG, '@doctype'],
+      // DOCTYPE declaration - < is delimiter, !DOCTYPE is metatag
+      [/<!/, HTMLTokenType.TAG_DELIMITER, '@doctypeStart'],
 
       // Comment start
       [/<!--/, HTMLTokenType.COMMENT, '@comment'],
@@ -119,14 +119,28 @@ export const HTMLGrammar = {
     ],
 
     // ----------------
-    // DOCTYPE State
+    // DOCTYPE Start State (after <!)
+    // ----------------
+    doctypeStart: [
+      // DOCTYPE keyword
+      [/DOCTYPE/i, HTMLTokenType.METATAG, '@doctype'],
+
+      // Not DOCTYPE, might be comment or other - recover
+      [/--/, HTMLTokenType.COMMENT, '@comment'],
+
+      // Fallback
+      [/./, HTMLTokenType.TEXT, '@pop'],
+    ],
+
+    // ----------------
+    // DOCTYPE State (after DOCTYPE keyword)
     // ----------------
     doctype: [
-      // DOCTYPE content
+      // DOCTYPE content (html, PUBLIC, etc.)
       [/[^>]+/, HTMLTokenType.METATAG_CONTENT],
 
-      // End of DOCTYPE
-      [/>/, HTMLTokenType.METATAG, '@pop'],
+      // End of DOCTYPE - pop twice (doctype → doctypeStart → root)
+      [/>/, HTMLTokenType.TAG_DELIMITER, '@pop @pop'],
     ],
 
     // ----------------
@@ -198,11 +212,11 @@ export const HTMLGrammar = {
       // Whitespace between attributes
       [/[ \t\r\n]+/, HTMLTokenType.WHITESPACE],
 
-      // Self-closing end />
-      [/\/>/, HTMLTokenType.TAG_DELIMITER, '@pop'],
+      // Self-closing end /> - pop twice to return to root (tagBody → openTag → root)
+      [/\/>/, HTMLTokenType.TAG_DELIMITER, '@pop @pop'],
 
-      // Normal tag end >
-      [/>/, HTMLTokenType.TAG_DELIMITER, '@pop'],
+      // Normal tag end > - pop twice to return to root (tagBody → openTag → root)
+      [/>/, HTMLTokenType.TAG_DELIMITER, '@pop @pop'],
 
       // Attribute name (including data-*, aria-*, etc.)
       [/[a-zA-Z_:][a-zA-Z0-9_:\.\-]*/, HTMLTokenType.ATTRIBUTE_NAME, '@afterAttributeName'],
@@ -221,10 +235,13 @@ export const HTMLGrammar = {
       // Equals sign - go to attribute value
       [/=/, HTMLTokenType.DELIMITER, '@attributeValue'],
 
+      // FIX: Handle tag end directly in this state
+      // Pop 3 times: afterAttributeName → tagBody → openTag → root
+      [/\/>/, HTMLTokenType.TAG_DELIMITER, '@pop @pop @pop'],
+      [/>/, HTMLTokenType.TAG_DELIMITER, '@pop @pop @pop'],
+
       // No value (boolean attribute like "disabled") - back to tag body
-      // Lookahead for end of tag or another attribute
-      [/(?=\/>)/, '', '@pop'],
-      [/(?=>)/, '', '@pop'],
+      // Lookahead for next attribute name
       [/(?=[a-zA-Z_:])/, '', '@pop'],
 
       // Anything else, recover
@@ -267,8 +284,9 @@ export const HTMLGrammar = {
       // Standalone &
       [/&/, HTMLTokenType.STRING],
 
-      // End quote - pop twice (back through attributeValue and afterAttributeName)
-      [/"/, HTMLTokenType.STRING, '@pop @pop'],
+      // End quote - pop 3 times to return to tagBody
+      // (doubleQuoteValue → attributeValue → afterAttributeName → tagBody)
+      [/"/, HTMLTokenType.STRING, '@pop @pop @pop'],
     ],
 
     // ----------------
@@ -284,8 +302,9 @@ export const HTMLGrammar = {
       // Standalone &
       [/&/, HTMLTokenType.STRING],
 
-      // End quote - pop twice
-      [/'/, HTMLTokenType.STRING, '@pop @pop'],
+      // End quote - pop 3 times to return to tagBody
+      // (singleQuoteValue → attributeValue → afterAttributeName → tagBody)
+      [/'/, HTMLTokenType.STRING, '@pop @pop @pop'],
     ],
   },
 };

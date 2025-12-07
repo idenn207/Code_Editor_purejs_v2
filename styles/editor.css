@@ -21,6 +21,7 @@
 
   /* Syntax colors */
   --ec-keyword: #569cd6;
+  --ec-keyword-control: #c586c0;
   --ec-keyword-literal: #569cd6;
   --ec-string: #ce9178;
   --ec-string-template: #ce9178;
@@ -33,6 +34,36 @@
   --ec-class: #4ec9b0;
   --ec-identifier: #9cdcfe;
   --ec-property: #9cdcfe;
+
+  /* HTML specific tokens (VS Code Dark+ colors) */
+  --ec-tag: #569cd6;
+  --ec-tag-delimiter: #808080;
+  --ec-metatag: #569cd6;
+  --ec-metatag-content: #9cdcfe;
+  --ec-attribute-name: #9cdcfe;
+  --ec-attribute-value: #ce9178;
+
+  /* CSS specific tokens (VS Code Dark+ colors) */
+  --ec-selector-tag: #d7ba7d; /* HTML tag selectors: body, div, etc. */
+  --ec-selector-class: #d7ba7d; /* .class-name */
+  --ec-selector-id: #d7ba7d; /* #id-name */
+  --ec-selector-pseudo: #d7ba7d; /* :hover, ::before, :root */
+  --ec-selector-attribute: #d7ba7d; /* [attr] selectors */
+  --ec-at-rule: #c586c0; /* @media, @keyframes, @import */
+  --ec-css-property: #9cdcfe; /* property names: color, font-size */
+  --ec-css-value: #ce9178; /* value keywords: auto, inherit */
+  --ec-css-unit: #b5cea8; /* units: px, em, rem */
+  --ec-css-function: #dcdcaa; /* functions: rgb(), var(), calc() */
+  --ec-css-variable: #9cdcfe; /* --custom-property */
+  --ec-css-hex: #ce9178; /* hex colors: #fff */
+
+  /* Indent guide colors (rainbow) */
+  --ec-indent-1: rgba(255, 215, 0, 0.3);
+  --ec-indent-2: rgba(233, 30, 99, 0.3);
+  --ec-indent-3: rgba(156, 39, 176, 0.3);
+  --ec-indent-4: rgba(33, 150, 243, 0.3);
+  --ec-indent-5: rgba(0, 188, 212, 0.3);
+  --ec-indent-6: rgba(76, 175, 80, 0.3);
 
   /* Auto-complete colors */
   --ec-autocomplete-bg: #252526;
@@ -232,6 +263,10 @@
   color: var(--ec-keyword);
 }
 
+.ec-token-keyword-control {
+  color: var(--ec-keyword-control);
+}
+
 .ec-token-keyword-literal {
   color: var(--ec-keyword-literal);
 }
@@ -286,7 +321,7 @@
 }
 
 .ec-token-property {
-  color: var(--ec-property);
+  color: var(--ec-css-property, var(--ec-property));
 }
 
 .ec-token-whitespace {
@@ -295,6 +330,76 @@
 
 .ec-token-plain {
   color: var(--ec-fg);
+}
+
+/* HTML/CSS Token Types */
+.ec-token-tag {
+  color: var(--ec-tag);
+}
+
+.ec-token-delimiter-tag {
+  color: var(--ec-tag-delimiter);
+}
+
+.ec-token-metatag {
+  color: var(--ec-metatag);
+}
+
+.ec-token-metatag-content {
+  color: var(--ec-metatag-content);
+}
+
+.ec-token-attribute-name {
+  color: var(--ec-attribute-name);
+}
+
+.ec-token-attribute-value {
+  color: var(--ec-attribute-value);
+}
+
+/* CSS Specific Token Types */
+.ec-token-selector-tag {
+  color: var(--ec-selector-tag);
+}
+
+.ec-token-selector-class {
+  color: var(--ec-selector-class);
+}
+
+.ec-token-selector-id {
+  color: var(--ec-selector-id);
+}
+
+.ec-token-selector-pseudo {
+  color: var(--ec-selector-pseudo);
+}
+
+.ec-token-selector-attribute {
+  color: var(--ec-selector-attribute);
+}
+
+.ec-token-at-rule {
+  color: var(--ec-at-rule);
+}
+
+.ec-token-at-rule-name {
+  color: var(--ec-css-property);
+}
+
+.ec-token-at-rule-keyword {
+  color: var(--ec-at-rule);
+}
+
+.ec-token-value {
+  color: var(--ec-css-value);
+}
+
+.ec-token-unit {
+  color: var(--ec-css-unit);
+}
+
+.ec-token-keyword-important {
+  color: var(--ec-keyword);
 }
 
 /* ============================================
@@ -478,6 +583,45 @@
 }
 
 /* ============================================
+   Indent Guides
+   ============================================ */
+
+.ec-indent-guide-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.ec-indent-guide {
+  position: absolute;
+  width: 1px;
+  pointer-events: none;
+}
+
+.ec-indent-guide-1 {
+  background-color: var(--ec-indent-1);
+}
+.ec-indent-guide-2 {
+  background-color: var(--ec-indent-2);
+}
+.ec-indent-guide-3 {
+  background-color: var(--ec-indent-3);
+}
+.ec-indent-guide-4 {
+  background-color: var(--ec-indent-4);
+}
+.ec-indent-guide-5 {
+  background-color: var(--ec-indent-5);
+}
+.ec-indent-guide-6 {
+  background-color: var(--ec-indent-6);
+}
+
+/* ============================================
    Hidden Textarea (Fallback Mode)
    ============================================ */
 
@@ -513,6 +657,7 @@
   --ec-border: #e0e0e0;
 
   --ec-keyword: #0000ff;
+  --ec-keyword-control: #af00db;
   --ec-keyword-literal: #0000ff;
   --ec-string: #a31515;
   --ec-string-template: #a31515;
@@ -525,6 +670,36 @@
   --ec-class: #267f99;
   --ec-identifier: #001080;
   --ec-property: #001080;
+
+  /* HTML specific tokens (light theme - VS Code Light+) */
+  --ec-tag: #800000;
+  --ec-tag-delimiter: #800000;
+  --ec-metatag: #800000;
+  --ec-metatag-content: #000000;
+  --ec-attribute-name: #ff0000;
+  --ec-attribute-value: #0000ff;
+
+  /* CSS specific tokens (light theme - VS Code Light+) */
+  --ec-selector-tag: #800000;
+  --ec-selector-class: #800000;
+  --ec-selector-id: #800000;
+  --ec-selector-pseudo: #800000;
+  --ec-selector-attribute: #800000;
+  --ec-at-rule: #af00db;
+  --ec-css-property: #ff0000;
+  --ec-css-value: #0451a5;
+  --ec-css-unit: #098658;
+  --ec-css-function: #795e26;
+  --ec-css-variable: #ff0000;
+  --ec-css-hex: #0451a5;
+
+  /* Indent guide colors (light theme) */
+  --ec-indent-1: rgba(255, 193, 7, 0.4);
+  --ec-indent-2: rgba(233, 30, 99, 0.4);
+  --ec-indent-3: rgba(156, 39, 176, 0.4);
+  --ec-indent-4: rgba(33, 150, 243, 0.4);
+  --ec-indent-5: rgba(0, 188, 212, 0.4);
+  --ec-indent-6: rgba(76, 175, 80, 0.4);
 
   --ec-autocomplete-bg: #f3f3f3;
   --ec-autocomplete-border: #c8c8c8;

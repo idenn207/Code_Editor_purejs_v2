@@ -3,9 +3,9 @@
  * @module tokenizer/Tokenizer
  */
 
-import { JavaScriptGrammar, TokenType, identifyFunctionCalls } from './grammars/javascript.js';
-import { HTMLGrammar, HTMLTokenType } from './grammars/html.js';
 import { CSSGrammar, CSSTokenType } from './grammars/css.js';
+import { HTMLGrammar, HTMLTokenType } from './grammars/html.js';
+import { JavaScriptGrammar, TokenType, identifyFunctionCalls } from './grammars/javascript.js';
 import { TokenizerState } from './TokenizerState.js';
 
 // ============================================
@@ -360,5 +360,5 @@ export class Tokenizer {
 // Exports
 // ============================================
 
-export { TokenType, TokenizerState, HTMLTokenType, CSSTokenType };
+export { CSSTokenType, HTMLTokenType, TokenType, TokenizerState };
 
