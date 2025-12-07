@@ -126,11 +126,13 @@ export class Editor {
   // ----------------------------------------
 
   /**
-   * Get current selection
+   * Get current selection (normalized so start <= end)
    * @returns {{ start: number, end: number }}
    */
   getSelection() {
-    return { ...this._selection };
+    const { start, end } = this._selection;
+    // Normalize: ensure start <= end for consistent range operations
+    return start <= end ? { start, end } : { start: end, end: start };
   }
 
   /**
