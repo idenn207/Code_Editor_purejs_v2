@@ -430,6 +430,16 @@ export class EditorView {
     }
   }
 
+  /**
+   * Set language for syntax highlighting
+   * @param {string} language - Language identifier
+   */
+  setLanguage(language) {
+    this._options.language = language;
+    this._tokenizer = new Tokenizer(language);
+    this._render();
+  }
+
   // ----------------------------------------
   // Getters
   // ----------------------------------------

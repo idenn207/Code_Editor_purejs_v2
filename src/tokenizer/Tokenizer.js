@@ -4,6 +4,8 @@
  */
 
 import { JavaScriptGrammar, TokenType, identifyFunctionCalls } from './grammars/javascript.js';
+import { HTMLGrammar, HTMLTokenType } from './grammars/html.js';
+import { CSSGrammar, CSSTokenType } from './grammars/css.js';
 import { TokenizerState } from './TokenizerState.js';
 
 // ============================================
@@ -42,6 +44,11 @@ export class Tokenizer {
       case 'javascript':
       case 'js':
         return JavaScriptGrammar;
+      case 'html':
+      case 'htm':
+        return HTMLGrammar;
+      case 'css':
+        return CSSGrammar;
       default:
         console.warn(`[Tokenizer] Unknown language: ${language}, using JavaScript`);
         return JavaScriptGrammar;
@@ -353,5 +360,5 @@ export class Tokenizer {
 // Exports
 // ============================================
 
-export { TokenType, TokenizerState };
+export { TokenType, TokenizerState, HTMLTokenType, CSSTokenType };
 

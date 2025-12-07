@@ -271,6 +271,23 @@ export class Editor {
     this.setSelection(offset, offset);
   }
 
+  /**
+   * Set editor language for syntax highlighting
+   * @param {string} language - Language identifier (javascript, html, css)
+   */
+  setLanguage(language) {
+    this._options.language = language;
+    this._view.setLanguage(language);
+  }
+
+  /**
+   * Get current language
+   * @returns {string}
+   */
+  getLanguage() {
+    return this._options.language;
+  }
+
   // ----------------------------------------
   // Focus Management
   // ----------------------------------------
