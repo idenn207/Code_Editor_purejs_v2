@@ -1,4 +1,4 @@
-import { AutoCloseFeature, AutoIndentFeature, BracketMatchFeature, Editor, isEditContextSupported } from './index.js';
+import { AutoCloseFeature, AutoIndentFeature, BracketMatchFeature, Editor, IndentGuideFeature, isEditContextSupported } from './index.js';
 
 // ============================================
 // Sample Code for Syntax Highlighting Demo
@@ -228,6 +228,11 @@ const autoIndent = new AutoIndentFeature(editor, {
 // Enable Bracket Match feature
 const bracketMatch = new BracketMatchFeature(editor);
 
+// Enable Indent Guide feature
+const indentGuide = new IndentGuideFeature(editor, {
+  tabSize: 2,
+});
+
 // UI Elements
 const inputModeEl = document.getElementById('input-mode');
 const ecSupportEl = document.getElementById('ec-support');
@@ -281,6 +286,7 @@ window.editor = editor;
 window.autoClose = autoClose;
 window.autoIndent = autoIndent;
 window.bracketMatch = bracketMatch;
+window.indentGuide = indentGuide;
 
 // Expose sample code for testing different languages
 window.SAMPLE_CODE_JS = SAMPLE_CODE_JS;
@@ -321,6 +327,7 @@ console.log('Editor instance available as window.editor');
 console.log('AutoCloseFeature available as window.autoClose');
 console.log('AutoIndentFeature available as window.autoIndent');
 console.log('BracketMatchFeature available as window.bracketMatch');
+console.log('IndentGuideFeature available as window.indentGuide');
 console.log('');
 console.log('Sample code available: SAMPLE_CODE_JS, SAMPLE_CODE_HTML, SAMPLE_CODE_CSS');
 console.log('To test HTML: editor.setLanguage("html"); editor.setValue(SAMPLE_CODE_HTML);');

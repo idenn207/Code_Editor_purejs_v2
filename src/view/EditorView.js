@@ -223,8 +223,6 @@ export class EditorView {
       const tokens = result.tokens;
       state = result.endState;
 
-      console.log('tokens: ', tokens);
-
       // Render tokens
       for (const token of tokens) {
         const span = document.createElement('span');
