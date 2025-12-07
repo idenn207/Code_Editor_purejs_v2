@@ -447,6 +447,10 @@ export class EditorView {
   // Getters
   // ----------------------------------------
 
+  get container() {
+    return this._container;
+  }
+
   get contentElement() {
     return this._contentElement;
   }

@@ -766,6 +766,176 @@
 }
 
 /* ============================================
+   Search Widget
+   ============================================ */
+
+.ec-search-widget {
+  position: absolute;
+  top: 10px;
+  right: 20px;
+  z-index: 100;
+  background: var(--ec-autocomplete-bg);
+  border: 1px solid var(--ec-autocomplete-border);
+  border-radius: 4px;
+  padding: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  min-width: 320px;
+}
+
+.ec-search-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.ec-search-input,
+.ec-replace-input {
+  flex: 1;
+  background: var(--ec-bg);
+  color: var(--ec-fg);
+  border: 1px solid var(--ec-border);
+  border-radius: 3px;
+  padding: 5px 8px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.ec-search-input:focus,
+.ec-replace-input:focus {
+  outline: none;
+  border-color: #007acc;
+}
+
+.ec-match-count {
+  font-size: 12px;
+  opacity: 0.8;
+  margin: 0 6px;
+  white-space: nowrap;
+  min-width: 70px;
+  text-align: center;
+}
+
+.ec-match-count.ec-no-results {
+  color: #f44747;
+}
+
+.ec-search-btn {
+  background: transparent;
+  border: 1px solid var(--ec-border);
+  color: var(--ec-fg);
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  min-width: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ec-search-btn:hover {
+  background: var(--ec-autocomplete-hover);
+}
+
+.ec-search-btn:active {
+  background: var(--ec-autocomplete-selected);
+}
+
+.ec-search-close {
+  font-size: 18px;
+  padding: 2px 6px;
+}
+
+.ec-search-options {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.ec-search-toggle {
+  background: transparent;
+  border: 1px solid var(--ec-border);
+  color: var(--ec-fg);
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  opacity: 0.6;
+}
+
+.ec-search-toggle:hover {
+  opacity: 0.8;
+}
+
+.ec-search-toggle.active {
+  background: var(--ec-autocomplete-selected);
+  border-color: var(--ec-autocomplete-selected);
+  color: white;
+  opacity: 1;
+}
+
+.ec-replace-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ec-replace-btn,
+.ec-replace-all-btn {
+  white-space: nowrap;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+/* Search Match Decorations */
+.ec-search-decoration-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.ec-search-match {
+  position: absolute;
+  background: rgba(255, 255, 0, 0.25);
+  border: 1px solid rgba(255, 200, 0, 0.4);
+  border-radius: 2px;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.ec-search-match-current {
+  background: rgba(255, 180, 0, 0.45);
+  border-color: rgba(255, 150, 0, 0.8);
+  box-shadow: 0 0 0 1px rgba(255, 180, 0, 0.3);
+}
+
+/* Light theme search */
+.ec-editor.ec-theme-light .ec-search-match {
+  background: rgba(255, 235, 59, 0.35);
+  border-color: rgba(255, 193, 7, 0.5);
+}
+
+.ec-editor.ec-theme-light .ec-search-match-current {
+  background: rgba(255, 193, 7, 0.5);
+  border-color: rgba(255, 152, 0, 0.8);
+}
+
+.ec-editor.ec-theme-light .ec-search-toggle.active {
+  background: #0060c0;
+  border-color: #0060c0;
+}
+
+/* ============================================
    Responsive
    ============================================ */
 

@@ -1,0 +1,333 @@
+/**
+ * @fileoverview Search widget UI for find and replace
+ * @module features/search/SearchWidget
+ */
+
+// ============================================
+// Constants
+// ============================================
+
+const DEBOUNCE_DELAY = 150;
+
+// ============================================
+// SearchWidget Class
+// ============================================
+
+export class SearchWidget {
+  // ----------------------------------------
+  // Instance Properties
+  // ----------------------------------------
+
+  _editor = null;
+  _container = null;
+  _visible = false;
+  _mode = 'find'; // 'find' or 'replace'
+
+  // DOM Elements
+  _findInput = null;
+  _replaceInput = null;
+  _replaceRow = null;
+  _matchCount = null;
+  _prevButton = null;
+  _nextButton = null;
+  _replaceButton = null;
+  _replaceAllButton = null;
+  _closeButton = null;
+  _caseSensitiveToggle = null;
+  _wholeWordToggle = null;
+  _regexToggle = null;
+
+  // State
+  _options = {
+    caseSensitive: false,
+    wholeWord: false,
+    regex: false,
+  };
+
+  // Callbacks
+  _onSearch = null;
+  _onFindNext = null;
+  _onFindPrevious = null;
+  _onReplace = null;
+  _onReplaceAll = null;
+  _onClose = null;
+
+  // Debounce timer
+  _debounceTimer = null;
+
+  // ----------------------------------------
+  // Constructor
+  // ----------------------------------------
+
+  /**
+   * @param {Object} editor - Editor instance
+   * @param {Object} callbacks - Event callbacks
+   */
+  constructor(editor, callbacks = {}) {
+    this._editor = editor;
+    this._onSearch = callbacks.onSearch || (() => {});
+    this._onFindNext = callbacks.onFindNext || (() => {});
+    this._onFindPrevious = callbacks.onFindPrevious || (() => {});
+    this._onReplace = callbacks.onReplace || (() => {});
+    this._onReplaceAll = callbacks.onReplaceAll || (() => {});
+    this._onClose = callbacks.onClose || (() => {});
+
+    this._createDOM();
+    this._bindEvents();
+  }
+
+  // ----------------------------------------
+  // DOM Creation
+  // ----------------------------------------
+
+  _createDOM() {
+    this._container = document.createElement('div');
+    this._container.className = 'ec-search-widget';
+    this._container.style.display = 'none';
+
+    this._container.innerHTML = `
+      <div class="ec-search-row">
+        <input type="text" class="ec-search-input" placeholder="Find" spellcheck="false" />
+        <span class="ec-match-count">No results</span>
+        <button class="ec-search-btn ec-search-prev" title="Previous Match (Shift+Enter)">&#x2191;</button>
+        <button class="ec-search-btn ec-search-next" title="Next Match (Enter)">&#x2193;</button>
+        <button class="ec-search-btn ec-search-close" title="Close (Escape)">&times;</button>
+      </div>
+      <div class="ec-search-options">
+        <button class="ec-search-toggle" data-option="caseSensitive" title="Match Case">Aa</button>
+        <button class="ec-search-toggle" data-option="wholeWord" title="Match Whole Word">\\b</button>
+        <button class="ec-search-toggle" data-option="regex" title="Use Regular Expression">.*</button>
+      </div>
+      <div class="ec-replace-row">
+        <input type="text" class="ec-replace-input" placeholder="Replace" spellcheck="false" />
+        <button class="ec-search-btn ec-replace-btn" title="Replace">Replace</button>
+        <button class="ec-search-btn ec-replace-all-btn" title="Replace All">All</button>
+      </div>
+    `;
+
+    // Cache DOM references
+    this._findInput = this._container.querySelector('.ec-search-input');
+    this._replaceInput = this._container.querySelector('.ec-replace-input');
+    this._replaceRow = this._container.querySelector('.ec-replace-row');
+    this._matchCount = this._container.querySelector('.ec-match-count');
+    this._prevButton = this._container.querySelector('.ec-search-prev');
+    this._nextButton = this._container.querySelector('.ec-search-next');
+    this._closeButton = this._container.querySelector('.ec-search-close');
+    this._replaceButton = this._container.querySelector('.ec-replace-btn');
+    this._replaceAllButton = this._container.querySelector('.ec-replace-all-btn');
+    this._caseSensitiveToggle = this._container.querySelector('[data-option="caseSensitive"]');
+    this._wholeWordToggle = this._container.querySelector('[data-option="wholeWord"]');
+    this._regexToggle = this._container.querySelector('[data-option="regex"]');
+
+    // Append to the main editor container (not contentElement which scrolls)
+    this._editor.view.container.appendChild(this._container);
+  }
+
+  // ----------------------------------------
+  // Event Binding
+  // ----------------------------------------
+
+  _bindEvents() {
+    // Find input - handle Enter/Escape specially
+    this._findInput.addEventListener('input', () => this._handleFindInput());
+    this._findInput.addEventListener('keydown', (e) => {
+      e.stopPropagation(); // Prevent editor from receiving
+      this._handleFindKeyDown(e);
+    });
+
+    // Replace input - handle Enter/Escape specially
+    this._replaceInput.addEventListener('keydown', (e) => {
+      e.stopPropagation(); // Prevent editor from receiving
+      this._handleReplaceKeyDown(e);
+    });
+
+    // Navigation buttons
+    this._prevButton.addEventListener('click', () => this._onFindPrevious());
+    this._nextButton.addEventListener('click', () => this._onFindNext());
+    this._closeButton.addEventListener('click', () => this.hide());
+
+    // Replace buttons
+    this._replaceButton.addEventListener('click', () => this._onReplace(this._replaceInput.value));
+    this._replaceAllButton.addEventListener('click', () => this._onReplaceAll(this._replaceInput.value));
+
+    // Option toggles
+    this._caseSensitiveToggle.addEventListener('click', () => this._toggleOption('caseSensitive'));
+    this._wholeWordToggle.addEventListener('click', () => this._toggleOption('wholeWord'));
+    this._regexToggle.addEventListener('click', () => this._toggleOption('regex'));
+
+    // Prevent any other keyboard events from reaching editor
+    this._container.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+    });
+  }
+
+  // ----------------------------------------
+  // Event Handlers
+  // ----------------------------------------
+
+  _handleFindInput() {
+    clearTimeout(this._debounceTimer);
+    this._debounceTimer = setTimeout(() => {
+      this._onSearch(this._findInput.value, this._options);
+    }, DEBOUNCE_DELAY);
+  }
+
+  _handleFindKeyDown(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      clearTimeout(this._debounceTimer);
+
+      if (e.shiftKey) {
+        this._onFindPrevious();
+      } else {
+        this._onFindNext();
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      this.hide();
+    }
+  }
+
+  _handleReplaceKeyDown(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        this._onReplaceAll(this._replaceInput.value);
+      } else {
+        this._onReplace(this._replaceInput.value);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      this.hide();
+    }
+  }
+
+  _toggleOption(option) {
+    this._options[option] = !this._options[option];
+
+    const button = this._container.querySelector(`[data-option="${option}"]`);
+    button.classList.toggle('active', this._options[option]);
+
+    // Re-search with new options
+    this._onSearch(this._findInput.value, this._options);
+  }
+
+  // ----------------------------------------
+  // Public Methods
+  // ----------------------------------------
+
+  /**
+   * Show the search widget
+   * @param {string} mode - 'find' or 'replace'
+   */
+  show(mode = 'find') {
+    this._mode = mode;
+    this._visible = true;
+    this._container.style.display = 'block';
+
+    // Show/hide replace row based on mode
+    this._replaceRow.style.display = mode === 'replace' ? 'flex' : 'none';
+
+    // Pre-fill with selected text if any
+    const selectedText = this._editor.getSelectedText();
+    if (selectedText && !selectedText.includes('\n')) {
+      this._findInput.value = selectedText;
+    }
+
+    // Focus and select
+    this._findInput.focus();
+    this._findInput.select();
+
+    // Trigger initial search if there's a query
+    if (this._findInput.value) {
+      this._onSearch(this._findInput.value, this._options);
+    }
+  }
+
+  /**
+   * Hide the search widget
+   */
+  hide() {
+    this._visible = false;
+    this._container.style.display = 'none';
+    clearTimeout(this._debounceTimer);
+
+    this._onClose();
+    this._editor.focus();
+  }
+
+  /**
+   * Check if widget is visible
+   * @returns {boolean}
+   */
+  isVisible() {
+    return this._visible;
+  }
+
+  /**
+   * Get current mode
+   * @returns {string} 'find' or 'replace'
+   */
+  getMode() {
+    return this._mode;
+  }
+
+  /**
+   * Update match count display
+   * @param {number} current - Current match index (1-based)
+   * @param {number} total - Total number of matches
+   */
+  updateMatchCount(current, total) {
+    if (total === 0) {
+      this._matchCount.textContent = 'No results';
+      this._matchCount.classList.add('ec-no-results');
+    } else {
+      this._matchCount.textContent = `${current} of ${total}`;
+      this._matchCount.classList.remove('ec-no-results');
+    }
+  }
+
+  /**
+   * Set the search query
+   * @param {string} query - Search query
+   */
+  setQuery(query) {
+    this._findInput.value = query;
+  }
+
+  /**
+   * Get the current query
+   * @returns {string}
+   */
+  getQuery() {
+    return this._findInput.value;
+  }
+
+  /**
+   * Get current options
+   * @returns {Object}
+   */
+  getOptions() {
+    return { ...this._options };
+  }
+
+  /**
+   * Focus the find input
+   */
+  focus() {
+    this._findInput.focus();
+  }
+
+  // ----------------------------------------
+  // Lifecycle
+  // ----------------------------------------
+
+  /**
+   * Clean up resources
+   */
+  dispose() {
+    clearTimeout(this._debounceTimer);
+    this._container?.remove();
+    this._editor = null;
+  }
+}
