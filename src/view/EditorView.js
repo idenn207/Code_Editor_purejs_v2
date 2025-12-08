@@ -39,7 +39,8 @@ export class EditorView {
   _gutterElement = null;
   _contentElement = null;
   _linesElement = null;
-  _cursorElement = null;
+  _cursorContainer = null; // Container for multiple cursors
+  _cursorElements = []; // Array of cursor elements
   _selectionElement = null;
   _compositionElement = null;
 
@@ -101,15 +102,15 @@ export class EditorView {
     this._linesElement = document.createElement('div');
     this._linesElement.className = 'ec-lines';
 
-    // Cursor layer - FIX: Create single cursor element
-    this._cursorElement = document.createElement('div');
-    this._cursorElement.className = 'ec-cursor';
+    // Cursor container for multiple cursors
+    this._cursorContainer = document.createElement('div');
+    this._cursorContainer.className = 'ec-cursor-container';
 
     // Assemble DOM
     this._contentElement.appendChild(this._selectionElement);
     this._contentElement.appendChild(this._compositionElement);
     this._contentElement.appendChild(this._linesElement);
-    this._contentElement.appendChild(this._cursorElement);
+    this._contentElement.appendChild(this._cursorContainer);
 
     this._wrapper.appendChild(this._gutterElement);
     this._wrapper.appendChild(this._contentElement);
@@ -178,17 +179,21 @@ export class EditorView {
       this._compositionElement.innerHTML = '';
     });
 
-    // Focus styling - FIX Issue 2: Properly manage cursor visibility
+    // Focus styling - manage cursor visibility for all cursors
     this._editor.on('focus', () => {
       this._container.classList.add('ec-focused');
-      this._cursorElement.classList.add('ec-cursor-blink');
-      this._cursorElement.style.opacity = '1';
+      for (const cursor of this._cursorElements) {
+        cursor.classList.add('ec-cursor-blink');
+        cursor.style.opacity = '1';
+      }
     });
 
     this._editor.on('blur', () => {
       this._container.classList.remove('ec-focused');
-      this._cursorElement.classList.remove('ec-cursor-blink');
-      this._cursorElement.style.opacity = '0';
+      for (const cursor of this._cursorElements) {
+        cursor.classList.remove('ec-cursor-blink');
+        cursor.style.opacity = '0';
+      }
     });
   }
 
@@ -262,66 +267,89 @@ export class EditorView {
     }
   }
 
-  // FIX Issue 1 & 2: Corrected cursor position calculation
+  /**
+   * Render all cursors (supports multi-cursor)
+   */
   _renderCursor() {
-    // Use raw selection - 'end' is always the cursor position (where user is typing)
-    const { end } = this._editor.getRawSelection();
     const doc = this._editor.document;
+    const selections = this._editor.getSelections();
+    const isFocused = this._container.classList.contains('ec-focused');
 
-    // Use selection end as cursor position
-    const pos = doc.offsetToPosition(end);
+    // Clear existing cursor elements
+    this._cursorContainer.innerHTML = '';
+    this._cursorElements = [];
 
-    // FIX: Calculate position relative to lines container (inside padding)
-    const top = pos.line * this._lineHeight + this._options.padding;
-    const left = pos.column * this._charWidth + this._options.padding;
+    // Create a cursor element for each selection
+    for (const sel of selections) {
+      // Cursor is at the 'cursor' position (movable end of selection)
+      const cursorOffset = sel.cursor;
+      const pos = doc.offsetToPosition(cursorOffset);
 
-    // FIX Issue 2: Reset all cursor styles to prevent duplicates
-    this._cursorElement.style.top = `${top}px`;
-    this._cursorElement.style.left = `${left}px`;
-    this._cursorElement.style.height = `${this._lineHeight}px`;
-    this._cursorElement.style.width = '2px';
+      // Calculate position relative to content area (inside padding)
+      const top = pos.line * this._lineHeight + this._options.padding;
+      const left = pos.column * this._charWidth + this._options.padding;
 
-    // Ensure cursor visibility based on focus state
-    if (this._container.classList.contains('ec-focused')) {
-      this._cursorElement.style.opacity = '1';
+      // Create cursor element
+      const cursorEl = document.createElement('div');
+      cursorEl.className = 'ec-cursor';
+      cursorEl.style.top = `${top}px`;
+      cursorEl.style.left = `${left}px`;
+      cursorEl.style.height = `${this._lineHeight}px`;
+      cursorEl.style.width = '2px';
+
+      // Add blink animation and visibility based on focus state
+      if (isFocused) {
+        cursorEl.classList.add('ec-cursor-blink');
+        cursorEl.style.opacity = '1';
+      } else {
+        cursorEl.style.opacity = '0';
+      }
+
+      this._cursorContainer.appendChild(cursorEl);
+      this._cursorElements.push(cursorEl);
     }
   }
 
+  /**
+   * Render all selections (supports multi-cursor)
+   */
   _renderSelection() {
-    const { start, end } = this._editor.getSelection();
     this._selectionElement.innerHTML = '';
 
-    if (start === end) {
-      return; // No selection
-    }
-
     const doc = this._editor.document;
-    const startPos = doc.offsetToPosition(Math.min(start, end));
-    const endPos = doc.offsetToPosition(Math.max(start, end));
+    const selections = this._editor.getSelections();
     const offset = this._options.padding;
 
-    // Render selection rectangles for each line
-    for (let line = startPos.line; line <= endPos.line; line++) {
-      const lineText = doc.getLine(line);
+    // Render each selection
+    for (const sel of selections) {
+      if (sel.isEmpty) continue; // Skip cursors without selection
 
-      let startCol = line === startPos.line ? startPos.column : 0;
-      let endCol = line === endPos.line ? endPos.column : lineText.length;
+      const startPos = doc.offsetToPosition(sel.start);
+      const endPos = doc.offsetToPosition(sel.end);
 
-      // Include newline in selection visual
-      if (line !== endPos.line) {
-        endCol = Math.max(endCol, lineText.length) + 0.5;
+      // Render selection rectangles for each line
+      for (let line = startPos.line; line <= endPos.line; line++) {
+        const lineText = doc.getLine(line);
+
+        let startCol = line === startPos.line ? startPos.column : 0;
+        let endCol = line === endPos.line ? endPos.column : lineText.length;
+
+        // Include newline in selection visual
+        if (line !== endPos.line) {
+          endCol = Math.max(endCol, lineText.length) + 0.5;
+        }
+
+        if (startCol === endCol) continue;
+
+        const selRect = document.createElement('div');
+        selRect.className = 'ec-selection-rect';
+        selRect.style.top = `${line * this._lineHeight + offset}px`;
+        selRect.style.left = `${startCol * this._charWidth + offset}px`;
+        selRect.style.width = `${Math.max((endCol - startCol) * this._charWidth, 4)}px`;
+        selRect.style.height = `${this._lineHeight}px`;
+
+        this._selectionElement.appendChild(selRect);
       }
-
-      if (startCol === endCol) continue;
-
-      const selRect = document.createElement('div');
-      selRect.className = 'ec-selection-rect';
-      selRect.style.top = `${line * this._lineHeight + offset}px`;
-      selRect.style.left = `${startCol * this._charWidth + offset}px`;
-      selRect.style.width = `${Math.max((endCol - startCol) * this._charWidth, 4)}px`;
-      selRect.style.height = `${this._lineHeight}px`;
-
-      this._selectionElement.appendChild(selRect);
     }
   }
 
@@ -413,12 +441,12 @@ export class EditorView {
   }
 
   /**
-   * Scroll to ensure cursor is visible
+   * Scroll to ensure primary cursor is visible
    */
   scrollToCursor() {
-    // Use raw selection - 'end' is always the cursor position
-    const { end } = this._editor.getRawSelection();
-    const pos = this._editor.document.offsetToPosition(end);
+    // Scroll to primary selection's cursor
+    const primary = this._editor.getSelections().primary;
+    const pos = this._editor.document.offsetToPosition(primary.cursor);
 
     const cursorTop = pos.line * this._lineHeight;
     const cursorBottom = cursorTop + this._lineHeight;

@@ -6,6 +6,7 @@ import {
   Editor,
   IndentGuideFeature,
   isEditContextSupported,
+  MultiCursorFeature,
   SearchFeature,
 } from './index.js';
 
@@ -214,13 +215,13 @@ nav > ul > li.active > a {
 `;
 
 // Default sample code (JavaScript)
-const SAMPLE_CODE = SAMPLE_CODE_CSS;
+const SAMPLE_CODE = SAMPLE_CODE_JS;
 
 // Initialize editor
 const container = document.getElementById('editor-container');
 const editor = new Editor(container, {
   value: SAMPLE_CODE,
-  language: 'css',
+  language: 'javascript',
   fontSize: 14,
   lineHeight: 22,
 });
@@ -247,6 +248,9 @@ const indentGuide = new IndentGuideFeature(editor, {
 
 // Enable Search feature
 const search = new SearchFeature(editor);
+
+// Enable Multi-Cursor feature
+const multiCursor = new MultiCursorFeature(editor);
 
 // UI Elements
 const inputModeEl = document.getElementById('input-mode');
@@ -303,6 +307,7 @@ window.autocomplete = autocomplete;
 window.autoIndent = autoIndent;
 window.bracketMatch = bracketMatch;
 window.indentGuide = indentGuide;
+window.multiCursor = multiCursor;
 window.search = search;
 
 // Expose sample code for testing different languages
@@ -346,10 +351,12 @@ console.log('AutocompleteFeature available as window.autocomplete');
 console.log('AutoIndentFeature available as window.autoIndent');
 console.log('BracketMatchFeature available as window.bracketMatch');
 console.log('IndentGuideFeature available as window.indentGuide');
+console.log('MultiCursorFeature available as window.multiCursor');
 console.log('SearchFeature available as window.search');
 console.log('');
 console.log('Search: Ctrl+F (find), Ctrl+H (replace)');
 console.log('Autocomplete: Ctrl+Space (trigger), Arrow keys (navigate), Enter/Tab (select)');
+console.log('Multi-Cursor: Alt+Click (add cursor), Ctrl+Alt+Up/Down (add cursor above/below), Ctrl+D (select next), Escape (collapse)');
 console.log('');
 console.log('Sample code available: SAMPLE_CODE_JS, SAMPLE_CODE_HTML, SAMPLE_CODE_CSS');
 console.log('To test HTML: editor.setLanguage("html"); editor.setValue(SAMPLE_CODE_HTML);');

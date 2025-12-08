@@ -6,6 +6,8 @@
  * Uses a hidden textarea (Monaco/VSCode approach) to capture input.
  */
 
+import { Selection } from '../model/Selection.js';
+
 // ============================================
 // Class Definition
 // ============================================
@@ -130,17 +132,14 @@ export class TextareaHandler {
     const text = this._textarea.value;
 
     if (text) {
-      const { start, end } = this._editor.getSelection();
-
-      this._editor.document.replaceRange(start, end, text);
-      this._editor.setSelection(start + text.length, start + text.length);
+      // Use insertText for multi-cursor support
+      this._editor.insertText(text);
 
       this._textarea.value = '';
 
       this._editor.emit('input', {
         type: 'input',
         text,
-        range: { start, end },
       });
     }
   }
@@ -251,66 +250,36 @@ export class TextareaHandler {
   }
 
   _handleArrowKey(key, shiftKey, modKey) {
-    const doc = this._editor.document;
-    // Use raw selection to preserve anchor/cursor direction for selection extension
-    let { start, end } = this._editor.getRawSelection();
+    // Map key to direction
+    const directionMap = {
+      ArrowLeft: 'left',
+      ArrowRight: 'right',
+      ArrowUp: 'up',
+      ArrowDown: 'down',
+    };
 
-    // For collapse logic (no shift), we need normalized min/max values
-    const selMin = Math.min(start, end);
-    const selMax = Math.max(start, end);
+    const direction = directionMap[key];
+    if (!direction) return;
 
-    if (!shiftKey && start !== end) {
-      // Collapse selection: Left/Up goes to left edge, Right/Down goes to right edge
-      if (key === 'ArrowLeft' || key === 'ArrowUp') {
-        start = end = selMin;
-      } else {
-        start = end = selMax;
-      }
-    }
-
-    let newOffset = end;
-    const pos = doc.offsetToPosition(end);
-
-    switch (key) {
-      case 'ArrowLeft':
-        newOffset = modKey ? this._findWordBoundary(end, -1) : Math.max(0, end - 1);
-        break;
-      case 'ArrowRight':
-        newOffset = modKey ? this._findWordBoundary(end, 1) : Math.min(doc.getLength(), end + 1);
-        break;
-      case 'ArrowUp':
-        if (pos.line > 0) {
-          const targetCol = Math.min(pos.column, doc.getLine(pos.line - 1).length);
-          newOffset = doc.positionToOffset(pos.line - 1, targetCol);
-        }
-        break;
-      case 'ArrowDown':
-        if (pos.line < doc.getLineCount() - 1) {
-          const targetCol = Math.min(pos.column, doc.getLine(pos.line + 1).length);
-          newOffset = doc.positionToOffset(pos.line + 1, targetCol);
-        }
-        break;
-    }
-
-    this._editor.setSelection(shiftKey ? start : newOffset, newOffset);
+    // Use Editor's multi-cursor aware method
+    this._editor.moveAllCursors(direction, shiftKey, modKey);
   }
 
   _handleHomeEnd(key, shiftKey, modKey) {
-    const doc = this._editor.document;
-    const { start, end } = this._editor.getSelection();
-    const pos = doc.offsetToPosition(end);
+    const edge = key === 'Home' ? 'start' : 'end';
 
-    let newOffset;
-    if (key === 'Home') {
-      newOffset = modKey ? 0 : doc.positionToOffset(pos.line, 0);
-    } else {
-      newOffset = modKey ? doc.getLength() : doc.positionToOffset(pos.line, doc.getLine(pos.line).length);
-    }
-
-    this._editor.setSelection(shiftKey ? start : newOffset, newOffset);
+    // Use Editor's multi-cursor aware method
+    this._editor.moveAllCursorsToLineEdge(edge, shiftKey, modKey);
   }
 
   _handleBackspace(modKey) {
+    // Check for multi-cursor - let Editor handle it
+    if (this._editor.hasMultipleCursors()) {
+      this._editor.deleteAtAllCursors(false, modKey);
+      return;
+    }
+
+    // Single cursor handling
     const doc = this._editor.document;
     let { start, end } = this._editor.getSelection();
 
@@ -325,6 +294,13 @@ export class TextareaHandler {
   }
 
   _handleDelete(modKey) {
+    // Check for multi-cursor - let Editor handle it
+    if (this._editor.hasMultipleCursors()) {
+      this._editor.deleteAtAllCursors(true, modKey);
+      return;
+    }
+
+    // Single cursor handling
     const doc = this._editor.document;
     let { start, end } = this._editor.getSelection();
 
@@ -339,16 +315,14 @@ export class TextareaHandler {
   }
 
   _handleEnter() {
-    const { start, end } = this._editor.getSelection();
-    this._editor.document.replaceRange(start, end, '\n');
-    this._editor.setSelection(start + 1, start + 1);
+    // Use insertText for multi-cursor support
+    this._editor.insertText('\n');
   }
 
   _handleTab(shiftKey) {
-    const { start, end } = this._editor.getSelection();
     const tabText = '  ';
-    this._editor.document.replaceRange(start, end, tabText);
-    this._editor.setSelection(start + tabText.length, start + tabText.length);
+    // Use insertText for multi-cursor support
+    this._editor.insertText(tabText);
   }
 
   _handleSelectAll() {
@@ -421,14 +395,88 @@ export class TextareaHandler {
     event.preventDefault();
 
     const text = event.clipboardData?.getData('text/plain') || '';
-    if (text) {
-      const { start, end } = this._editor.getSelection();
-      this._editor.document.replaceRange(start, end, text);
-      this._editor.setSelection(start + text.length, start + text.length);
+    if (!text) return;
+
+    // Handle multi-cursor smart paste
+    if (this._editor.hasMultipleCursors()) {
+      const lines = text.split('\n');
+      const selections = this._editor.getSelections();
+
+      // Smart paste: if line count matches cursor count, paste each line at each cursor
+      if (lines.length === selections.count) {
+        this._smartPasteMultiCursor(lines, selections);
+      } else {
+        // Normal paste: insert full text at all cursors
+        this._editor.insertText(text);
+      }
+      return;
     }
+
+    // Single cursor paste
+    const { start, end } = this._editor.getSelection();
+    this._editor.document.replaceRange(start, end, text);
+    this._editor.setSelection(start + text.length, start + text.length);
+  }
+
+  /**
+   * Smart paste for multi-cursor: paste each line at each cursor
+   * @param {string[]} lines - Lines to paste
+   * @param {SelectionCollection} selections - Current selections
+   */
+  _smartPasteMultiCursor(lines, selections) {
+    const doc = this._editor.document;
+
+    // Get selections sorted ascending to match with lines in order
+    const sortedSels = selections.sorted(false); // ascending
+
+    // Process from end to start to preserve offsets
+    const descendingSels = selections.sorted(true);
+
+    // Create a map of selection to its line
+    const selToLine = new Map();
+    for (let i = 0; i < sortedSels.length; i++) {
+      selToLine.set(sortedSels[i], lines[i]);
+    }
+
+    // Insert from end to start
+    for (const sel of descendingSels) {
+      const lineText = selToLine.get(sel);
+      doc.replaceRange(sel.start, sel.end, lineText);
+    }
+
+    // Calculate new cursor positions
+    const newSelections = [];
+    let cumulativeOffset = 0;
+
+    for (let i = 0; i < sortedSels.length; i++) {
+      const sel = sortedSels[i];
+      const lineText = lines[i];
+      const deletedLength = sel.end - sel.start;
+
+      const newPos = sel.start + cumulativeOffset + lineText.length;
+      newSelections.push(Selection.cursor(newPos));
+
+      cumulativeOffset += lineText.length - deletedLength;
+    }
+
+    this._editor.setSelections(newSelections);
   }
 
   _handleCopy(event) {
+    // Handle multi-cursor copy
+    if (this._editor.hasMultipleCursors()) {
+      const texts = this._editor.getAllSelectedTexts();
+      const hasSelection = texts.some((t) => t.length > 0);
+
+      if (hasSelection) {
+        const combinedText = texts.filter((t) => t.length > 0).join('\n');
+        event.clipboardData?.setData('text/plain', combinedText);
+        event.preventDefault();
+      }
+      return;
+    }
+
+    // Single cursor copy
     const { start, end } = this._editor.getSelection();
     if (start !== end) {
       const text = this._editor.document.getTextRange(start, end);
@@ -438,6 +486,23 @@ export class TextareaHandler {
   }
 
   _handleCut(event) {
+    // Handle multi-cursor cut
+    if (this._editor.hasMultipleCursors()) {
+      const texts = this._editor.getAllSelectedTexts();
+      const hasSelection = texts.some((t) => t.length > 0);
+
+      if (hasSelection) {
+        const combinedText = texts.filter((t) => t.length > 0).join('\n');
+        event.clipboardData?.setData('text/plain', combinedText);
+        event.preventDefault();
+
+        // Delete selections
+        this._editor.insertText('');
+      }
+      return;
+    }
+
+    // Single cursor cut
     const { start, end } = this._editor.getSelection();
     if (start !== end) {
       const text = this._editor.document.getTextRange(start, end);

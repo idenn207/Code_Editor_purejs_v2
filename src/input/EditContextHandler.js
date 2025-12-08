@@ -8,6 +8,8 @@
  * Browser Support: Chrome 121+, Edge 121+
  */
 
+import { Selection } from '../model/Selection.js';
+
 // ============================================
 // Constants
 // ============================================
@@ -137,19 +139,20 @@ export class EditContextHandler {
   // ----------------------------------------
 
   _handleTextUpdate(event) {
-    const { updateRangeStart, updateRangeEnd, text, selectionStart, selectionEnd } = event;
+    const { text } = event;
 
-    // Apply text change to document model
-    this._editor.document.replaceRange(updateRangeStart, updateRangeEnd, text);
+    // Use insertText for multi-cursor support
+    // insertText handles all cursors and updates selections properly
+    this._editor.insertText(text);
 
-    // Update selection
-    this._editor.setSelection(selectionStart, selectionEnd);
+    // Sync EditContext with new state
+    this._syncEditContextText();
+    this._syncEditContextSelection();
 
     // Emit event for view update
     this._editor.emit('input', {
       type: 'textupdate',
       text,
-      range: { start: updateRangeStart, end: updateRangeEnd },
     });
   }
 
@@ -331,100 +334,43 @@ export class EditContextHandler {
   // ----------------------------------------
 
   _handleArrowKey(key, shiftKey, modKey) {
-    const doc = this._editor.document;
-    // Use raw selection to preserve anchor/cursor direction for selection extension
-    let { start, end } = this._editor.getRawSelection();
+    // Map key to direction
+    const directionMap = {
+      ArrowLeft: 'left',
+      ArrowRight: 'right',
+      ArrowUp: 'up',
+      ArrowDown: 'down',
+    };
 
-    // For collapse logic (no shift), we need normalized min/max values
-    const selMin = Math.min(start, end);
-    const selMax = Math.max(start, end);
+    const direction = directionMap[key];
+    if (!direction) return;
 
-    if (!shiftKey && start !== end) {
-      // Collapse selection: Left/Up goes to left edge, Right/Down goes to right edge
-      if (key === 'ArrowLeft' || key === 'ArrowUp') {
-        start = end = selMin;
-      } else {
-        start = end = selMax;
-      }
-    }
-
-    let newOffset = end;
-    const pos = doc.offsetToPosition(end);
-
-    switch (key) {
-      case 'ArrowLeft':
-        if (modKey) {
-          newOffset = this._findWordBoundary(end, -1);
-        } else {
-          newOffset = Math.max(0, end - 1);
-        }
-        break;
-
-      case 'ArrowRight':
-        if (modKey) {
-          newOffset = this._findWordBoundary(end, 1);
-        } else {
-          newOffset = Math.min(doc.getLength(), end + 1);
-        }
-        break;
-
-      case 'ArrowUp':
-        if (pos.line > 0) {
-          const targetLine = pos.line - 1;
-          const targetCol = Math.min(pos.column, doc.getLine(targetLine).length);
-          newOffset = doc.positionToOffset(targetLine, targetCol);
-        }
-        break;
-
-      case 'ArrowDown':
-        if (pos.line < doc.getLineCount() - 1) {
-          const targetLine = pos.line + 1;
-          const targetCol = Math.min(pos.column, doc.getLine(targetLine).length);
-          newOffset = doc.positionToOffset(targetLine, targetCol);
-        }
-        break;
-    }
-
-    if (shiftKey) {
-      this._editor.setSelection(start, newOffset);
-    } else {
-      this._editor.setSelection(newOffset, newOffset);
-    }
+    // Use Editor's multi-cursor aware method
+    this._editor.moveAllCursors(direction, shiftKey, modKey);
 
     this._syncEditContextSelection();
   }
 
   _handleHomeEnd(key, shiftKey, modKey) {
-    const doc = this._editor.document;
-    const { start, end } = this._editor.getSelection();
-    const pos = doc.offsetToPosition(end);
+    const edge = key === 'Home' ? 'start' : 'end';
 
-    let newOffset;
-
-    if (key === 'Home') {
-      if (modKey) {
-        newOffset = 0;
-      } else {
-        newOffset = doc.positionToOffset(pos.line, 0);
-      }
-    } else {
-      if (modKey) {
-        newOffset = doc.getLength();
-      } else {
-        newOffset = doc.positionToOffset(pos.line, doc.getLine(pos.line).length);
-      }
-    }
-
-    if (shiftKey) {
-      this._editor.setSelection(start, newOffset);
-    } else {
-      this._editor.setSelection(newOffset, newOffset);
-    }
+    // Use Editor's multi-cursor aware method
+    this._editor.moveAllCursorsToLineEdge(edge, shiftKey, modKey);
 
     this._syncEditContextSelection();
   }
 
   _handleBackspace(modKey) {
+    // Check for multi-cursor - let Editor handle it
+    if (this._editor.hasMultipleCursors()) {
+      if (this._editor.deleteAtAllCursors(false, modKey)) {
+        this._syncEditContextText();
+        this._syncEditContextSelection();
+        return;
+      }
+    }
+
+    // Single cursor handling
     const doc = this._editor.document;
     let { start, end } = this._editor.getSelection();
 
@@ -448,6 +394,16 @@ export class EditContextHandler {
   }
 
   _handleDelete(modKey) {
+    // Check for multi-cursor - let Editor handle it
+    if (this._editor.hasMultipleCursors()) {
+      if (this._editor.deleteAtAllCursors(true, modKey)) {
+        this._syncEditContextText();
+        this._syncEditContextSelection();
+        return;
+      }
+    }
+
+    // Single cursor handling
     const doc = this._editor.document;
     let { start, end } = this._editor.getSelection();
 
@@ -471,20 +427,16 @@ export class EditContextHandler {
   }
 
   _handleEnter() {
-    const { start, end } = this._editor.getSelection();
-
-    this._editor.document.replaceRange(start, end, '\n');
-    this._editor.setSelection(start + 1, start + 1);
+    // Use insertText for multi-cursor support
+    this._editor.insertText('\n');
     this._syncEditContextText();
     this._syncEditContextSelection();
   }
 
   _handleTab(shiftKey) {
-    const { start, end } = this._editor.getSelection();
     const tabText = '  ';
-
-    this._editor.document.replaceRange(start, end, tabText);
-    this._editor.setSelection(start + tabText.length, start + tabText.length);
+    // Use insertText for multi-cursor support
+    this._editor.insertText(tabText);
     this._syncEditContextText();
     this._syncEditContextSelection();
   }
@@ -496,6 +448,20 @@ export class EditContextHandler {
   }
 
   _handleCopy() {
+    // Handle multi-cursor copy
+    if (this._editor.hasMultipleCursors()) {
+      const texts = this._editor.getAllSelectedTexts();
+      const hasSelection = texts.some((t) => t.length > 0);
+
+      if (hasSelection) {
+        // Join all selected texts with newlines
+        const combinedText = texts.filter((t) => t.length > 0).join('\n');
+        navigator.clipboard.writeText(combinedText);
+      }
+      return;
+    }
+
+    // Single cursor copy
     const { start, end } = this._editor.getSelection();
     if (start !== end) {
       const text = this._editor.document.getTextRange(start, end);
@@ -504,6 +470,25 @@ export class EditContextHandler {
   }
 
   _handleCut() {
+    // Handle multi-cursor cut
+    if (this._editor.hasMultipleCursors()) {
+      const texts = this._editor.getAllSelectedTexts();
+      const hasSelection = texts.some((t) => t.length > 0);
+
+      if (hasSelection) {
+        // Copy all selected texts
+        const combinedText = texts.filter((t) => t.length > 0).join('\n');
+        navigator.clipboard.writeText(combinedText);
+
+        // Delete selections by inserting empty string
+        this._editor.insertText('');
+        this._syncEditContextText();
+        this._syncEditContextSelection();
+      }
+      return;
+    }
+
+    // Single cursor cut
     const { start, end } = this._editor.getSelection();
     if (start !== end) {
       const text = this._editor.document.getTextRange(start, end);
@@ -518,8 +503,27 @@ export class EditContextHandler {
   async _handlePaste() {
     try {
       const text = await navigator.clipboard.readText();
-      const { start, end } = this._editor.getSelection();
 
+      // Handle multi-cursor smart paste
+      if (this._editor.hasMultipleCursors()) {
+        const lines = text.split('\n');
+        const selections = this._editor.getSelections();
+
+        // Smart paste: if line count matches cursor count, paste each line at each cursor
+        if (lines.length === selections.count) {
+          this._smartPasteMultiCursor(lines, selections);
+        } else {
+          // Normal paste: insert full text at all cursors
+          this._editor.insertText(text);
+        }
+
+        this._syncEditContextText();
+        this._syncEditContextSelection();
+        return;
+      }
+
+      // Single cursor paste
+      const { start, end } = this._editor.getSelection();
       this._editor.document.replaceRange(start, end, text);
       this._editor.setSelection(start + text.length, start + text.length);
       this._syncEditContextText();
@@ -527,6 +531,50 @@ export class EditContextHandler {
     } catch (err) {
       console.error('Paste failed:', err);
     }
+  }
+
+  /**
+   * Smart paste for multi-cursor: paste each line at each cursor
+   * @param {string[]} lines - Lines to paste
+   * @param {SelectionCollection} selections - Current selections
+   */
+  _smartPasteMultiCursor(lines, selections) {
+    const doc = this._editor.document;
+
+    // Get selections sorted ascending to match with lines in order
+    const sortedSels = selections.sorted(false); // ascending
+
+    // Process from end to start to preserve offsets
+    const descendingSels = selections.sorted(true);
+
+    // Create a map of selection to its line
+    const selToLine = new Map();
+    for (let i = 0; i < sortedSels.length; i++) {
+      selToLine.set(sortedSels[i], lines[i]);
+    }
+
+    // Insert from end to start
+    for (const sel of descendingSels) {
+      const lineText = selToLine.get(sel);
+      doc.replaceRange(sel.start, sel.end, lineText);
+    }
+
+    // Calculate new cursor positions
+    const newSelections = [];
+    let cumulativeOffset = 0;
+
+    for (let i = 0; i < sortedSels.length; i++) {
+      const sel = sortedSels[i];
+      const lineText = lines[i];
+      const deletedLength = sel.end - sel.start;
+
+      const newPos = sel.start + cumulativeOffset + lineText.length;
+      newSelections.push(Selection.cursor(newPos));
+
+      cumulativeOffset += lineText.length - deletedLength;
+    }
+
+    this._editor.setSelections(newSelections);
   }
 
   // ----------------------------------------

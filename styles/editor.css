@@ -160,25 +160,35 @@
 }
 
 /* ============================================
-   Cursor - FIX Issue 2: Improved cursor styling
+   Cursor - Supports multiple cursors
    ============================================ */
+
+/* Container for multiple cursors */
+.ec-cursor-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  pointer-events: none;
+}
 
 .ec-cursor {
   position: absolute;
   width: 2px;
   background: var(--ec-cursor-color);
-  z-index: 10;
   pointer-events: none;
   opacity: 0; /* Default hidden */
   transition: opacity 0.1s;
 }
 
-/* FIX Issue 2: Only show cursor when editor is focused */
+/* Only show cursor when editor is focused */
 .ec-focused .ec-cursor {
   opacity: 1;
 }
 
-/* FIX Issue 2: Ensure blink animation only applies when visible */
+/* Ensure blink animation only applies when visible */
 .ec-focused .ec-cursor.ec-cursor-blink {
   animation: ec-cursor-blink 1s step-end infinite;
 }

@@ -8,6 +8,8 @@
  * - Special handling for Enter between paired brackets
  */
 
+import { Selection } from '../../model/Selection.js';
+
 // ============================================
 // Constants
 // ============================================
@@ -96,6 +98,12 @@ export class AutoIndentFeature {
     event.preventDefault();
     event.stopPropagation();
 
+    // Check for multi-cursor mode
+    if (this._editor.hasMultipleCursors()) {
+      this._handleMultiCursorEnter();
+      return;
+    }
+
     const { start, end } = this._editor.getSelection();
 
     // Get cursor position in line/column
@@ -156,6 +164,83 @@ export class AutoIndentFeature {
     // Move cursor to end of inserted indentation
     const newCursorPos = start + insertText.length;
     this._editor.setSelection(newCursorPos, newCursorPos);
+  }
+
+  /**
+   * Handle Enter key for multiple cursors
+   * Each cursor gets newline + appropriate indentation
+   */
+  _handleMultiCursorEnter() {
+    const doc = this._editor.document;
+    const selections = this._editor.getSelections();
+    const language = this._editor.getLanguage();
+
+    // Calculate insert text for each cursor
+    const insertTexts = [];
+    for (const sel of selections.all) {
+      const pos = doc.offsetToPosition(sel.start);
+      const currentLine = doc.getLine(pos.line);
+      const beforeCursor = currentLine.slice(0, pos.column);
+      const afterCursor = currentLine.slice(pos.column);
+
+      const currentIndent = this._getIndentation(currentLine);
+      const trimmedBefore = beforeCursor.trimEnd();
+      const lastChar = trimmedBefore.slice(-1);
+
+      let shouldIncrease = INDENT_TRIGGERS.has(lastChar);
+      const htmlIndentContext = this._getHTMLIndentContext(beforeCursor, afterCursor, language);
+      if (htmlIndentContext.shouldIncrease) {
+        shouldIncrease = true;
+      }
+
+      let newIndent = currentIndent;
+      if (shouldIncrease) {
+        newIndent = currentIndent + this._getIndentString();
+      }
+
+      insertTexts.push('\n' + newIndent);
+    }
+
+    // Process from end to start to preserve offsets
+    const sortedSels = selections.sorted(true); // descending
+    const sortedTexts = [];
+
+    // Match sorted selections with their insert texts
+    const originalSels = selections.all;
+    for (const sortedSel of sortedSels) {
+      const idx = originalSels.findIndex(
+        (s) => s.start === sortedSel.start && s.end === sortedSel.end
+      );
+      sortedTexts.push(insertTexts[idx]);
+    }
+
+    // Insert at each cursor position
+    for (let i = 0; i < sortedSels.length; i++) {
+      const sel = sortedSels[i];
+      const insertText = sortedTexts[i];
+      doc.replaceRange(sel.start, sel.end, insertText);
+    }
+
+    // Calculate new cursor positions
+    const ascendingSels = selections.sorted(false);
+    const newSelections = [];
+    let cumulativeOffset = 0;
+
+    for (let i = 0; i < ascendingSels.length; i++) {
+      const sel = ascendingSels[i];
+      const idx = originalSels.findIndex(
+        (s) => s.start === sel.start && s.end === sel.end
+      );
+      const insertText = insertTexts[idx];
+      const deletedLength = sel.end - sel.start;
+
+      const newPos = sel.start + cumulativeOffset + insertText.length;
+      newSelections.push(Selection.cursor(newPos));
+
+      cumulativeOffset += insertText.length - deletedLength;
+    }
+
+    this._editor.setSelections(newSelections);
   }
 
   _handleBracketEnter(start, end, baseIndent) {

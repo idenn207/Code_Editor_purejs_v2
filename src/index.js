@@ -8,6 +8,8 @@ export { Editor } from './core/Editor.js';
 
 // Model
 export { Document } from './model/Document.js';
+export { Selection } from './model/Selection.js';
+export { SelectionCollection } from './model/SelectionCollection.js';
 
 // Input
 export { EditContextHandler, isEditContextSupported } from './input/EditContextHandler.js';
@@ -27,6 +29,7 @@ export { AutocompleteFeature } from './features/autocomplete/AutocompleteFeature
 export { AutoIndentFeature } from './features/autoIndent/AutoIndentFeature.js';
 export { BracketMatchFeature } from './features/bracketMatch/BracketMatchFeature.js';
 export { IndentGuideFeature } from './features/indentGuide/IndentGuideFeature.js';
+export { MultiCursorFeature } from './features/multiCursor/MultiCursorFeature.js';
 export { SearchFeature } from './features/search/SearchFeature.js';
 
 // Version
