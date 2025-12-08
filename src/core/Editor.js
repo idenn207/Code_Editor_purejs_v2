@@ -589,6 +589,9 @@ export class Editor {
 
   /**
    * Move all cursors to line edge (Home/End key navigation)
+   * Home key behavior (VS Code style):
+   * - If cursor is NOT at first non-whitespace: go to first non-whitespace
+   * - If cursor IS at first non-whitespace: go to column 0
    * @param {string} edge - 'start' for Home, 'end' for End
    * @param {boolean} shiftKey - Whether to extend selection
    * @param {boolean} modKey - Whether Ctrl/Cmd is held (document start/end)
@@ -608,9 +611,22 @@ export class Editor {
           // Ctrl+Home: go to document start
           newOffset = 0;
         } else {
-          // Home: go to line start
+          // Home: smart home behavior
           const pos = doc.offsetToPosition(cursor);
-          newOffset = doc.positionToOffset(pos.line, 0);
+          const line = doc.getLine(pos.line);
+          const lineStart = doc.positionToOffset(pos.line, 0);
+
+          // Find first non-whitespace character position
+          const firstNonWhitespace = line.search(/\S/);
+          const indentEnd = firstNonWhitespace === -1 ? 0 : firstNonWhitespace;
+
+          // If cursor is at indent end, go to line start (column 0)
+          // Otherwise, go to indent end
+          if (pos.column === indentEnd) {
+            newOffset = lineStart;
+          } else {
+            newOffset = lineStart + indentEnd;
+          }
         }
       } else {
         if (modKey) {
@@ -718,7 +734,8 @@ export class Editor {
   }
 
   /**
-   * Find word boundary from offset
+   * Find word boundary from offset (VS Code style)
+   * Stops at: word boundaries, camelCase transitions, punctuation, whitespace
    * @private
    * @param {number} offset - Starting offset
    * @param {number} direction - -1 for backward, 1 for forward
@@ -726,17 +743,136 @@ export class Editor {
    */
   _findWordBoundary(offset, direction) {
     const text = this._document.getText();
-    const wordRegex = /\w/;
     let pos = offset;
 
+    // Character classification for VS Code-style word movement
+    const getCharType = (char) => {
+      if (!char) return 'none';
+      if (/\s/.test(char)) return 'whitespace';
+      if (/[a-z]/.test(char)) return 'lower';
+      if (/[A-Z]/.test(char)) return 'upper';
+      if (/[0-9]/.test(char)) return 'digit';
+      if (/[_]/.test(char)) return 'underscore';
+      return 'punctuation';
+    };
+
     if (direction < 0) {
-      // Move backward
-      while (pos > 0 && !wordRegex.test(text[pos - 1])) pos--;
-      while (pos > 0 && wordRegex.test(text[pos - 1])) pos--;
+      // Move backward (Ctrl+Left)
+      if (pos === 0) return 0;
+
+      // Skip whitespace first
+      while (pos > 0 && getCharType(text[pos - 1]) === 'whitespace') {
+        pos--;
+      }
+
+      if (pos === 0) return 0;
+
+      const startType = getCharType(text[pos - 1]);
+
+      // Handle punctuation: stop after one punctuation char
+      if (startType === 'punctuation') {
+        return pos - 1;
+      }
+
+      // Move through same type characters
+      while (pos > 0) {
+        const prevType = getCharType(text[pos - 1]);
+
+        // Stop at whitespace or punctuation
+        if (prevType === 'whitespace' || prevType === 'punctuation') {
+          break;
+        }
+
+        // Handle camelCase: stop when going from lowercase to uppercase
+        // e.g., "camelCase" - cursor at 'C', moving left stops at 'c'
+        if (startType === 'upper' && prevType === 'lower') {
+          break;
+        }
+
+        // Handle ALLCAPS followed by lowercase: "XMLParser" - stop between "XML" and "Parser"
+        if (startType === 'lower' && prevType === 'upper') {
+          // Continue if we just started (one uppercase before lowercase is fine)
+          // Stop if there are multiple uppercase letters before
+          if (pos > 1 && getCharType(text[pos - 2]) === 'upper') {
+            break;
+          }
+        }
+
+        // Handle transition from letters to digits or vice versa
+        if ((startType === 'lower' || startType === 'upper') && prevType === 'digit') {
+          break;
+        }
+        if (startType === 'digit' && (prevType === 'lower' || prevType === 'upper')) {
+          break;
+        }
+
+        pos--;
+      }
     } else {
-      // Move forward
-      while (pos < text.length && !wordRegex.test(text[pos])) pos++;
-      while (pos < text.length && wordRegex.test(text[pos])) pos++;
+      // Move forward (Ctrl+Right)
+      if (pos >= text.length) return text.length;
+
+      const startType = getCharType(text[pos]);
+
+      // Skip current word/punctuation first, then skip whitespace
+      if (startType === 'whitespace') {
+        // At whitespace: skip whitespace, then stop at next word start
+        while (pos < text.length && getCharType(text[pos]) === 'whitespace') {
+          pos++;
+        }
+        return pos;
+      }
+
+      if (startType === 'punctuation') {
+        // At punctuation: move past this punctuation char
+        pos++;
+        // Skip any following whitespace
+        while (pos < text.length && getCharType(text[pos]) === 'whitespace') {
+          pos++;
+        }
+        return pos;
+      }
+
+      // At word: move to end of word, then skip whitespace
+      while (pos < text.length) {
+        const currType = getCharType(text[pos]);
+
+        // Stop at whitespace or punctuation
+        if (currType === 'whitespace' || currType === 'punctuation') {
+          break;
+        }
+
+        // Handle camelCase: stop at uppercase letter (start of new word part)
+        if (currType === 'upper' && pos > offset) {
+          const prevType = getCharType(text[pos - 1]);
+          if (prevType === 'lower') {
+            break;
+          }
+          // Handle "XMLParser": at second 'X', continue; at 'P', stop
+          if (prevType === 'upper' && pos + 1 < text.length) {
+            const nextType = getCharType(text[pos + 1]);
+            if (nextType === 'lower') {
+              break;
+            }
+          }
+        }
+
+        // Handle transition from letters to digits or vice versa
+        if (pos > offset) {
+          const prevType = getCharType(text[pos - 1]);
+          if ((currType === 'digit' && (prevType === 'lower' || prevType === 'upper')) ||
+              ((currType === 'lower' || currType === 'upper') && prevType === 'digit')) {
+            break;
+          }
+        }
+
+        pos++;
+      }
+
+      // Skip trailing whitespace
+      while (pos < text.length && getCharType(text[pos]) === 'whitespace') {
+        pos++;
+      }
     }
 
     return pos;

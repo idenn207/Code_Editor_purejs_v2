@@ -506,7 +506,9 @@ export class EditContextHandler {
 
       // Handle multi-cursor smart paste
       if (this._editor.hasMultipleCursors()) {
-        const lines = text.split('\n');
+        // Normalize line endings and split
+        const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        const lines = normalizedText.split('\n');
         const selections = this._editor.getSelections();
 
         // Smart paste: if line count matches cursor count, paste each line at each cursor
