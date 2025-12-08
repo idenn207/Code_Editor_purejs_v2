@@ -520,20 +520,8 @@ export class TextareaHandler {
   // ----------------------------------------
 
   _findWordBoundary(offset, direction) {
-    const text = this._editor.document.getText();
-    const wordRegex = /\w/;
-    let pos = offset;
-
-    if (direction < 0) {
-      pos--;
-      while (pos > 0 && !wordRegex.test(text[pos])) pos--;
-      while (pos > 0 && wordRegex.test(text[pos - 1])) pos--;
-    } else {
-      while (pos < text.length && wordRegex.test(text[pos])) pos++;
-      while (pos < text.length && !wordRegex.test(text[pos])) pos++;
-    }
-
-    return Math.max(0, Math.min(text.length, pos));
+    // Delegate to Editor's VS Code-style word boundary method
+    return this._editor._findWordBoundary(offset, direction);
   }
 
   /**
