@@ -505,25 +505,24 @@ export class Editor {
     }
 
     const selectionsBefore = this._selections.clone();
-    const sortedSels = this._selections.sorted(true);
 
-    this._batchingUndo = true;
-    const changes = [];
+    // Step 1: Pre-calculate all delete ranges BEFORE any modifications
+    // This ensures word boundaries are computed on the original document
+    const deleteRanges = [];
+    const ascendingSels = this._selections.sorted(false); // ascending order
 
-    for (const sel of sortedSels) {
+    for (const sel of ascendingSels) {
       let deleteStart = sel.start;
       let deleteEnd = sel.end;
 
       if (sel.isEmpty) {
         if (forward) {
-          // Delete forward
           if (byWord) {
             deleteEnd = this._findWordBoundary(sel.start, 1);
           } else {
             deleteEnd = Math.min(sel.start + 1, this._document.getLength());
           }
         } else {
-          // Backspace
           if (byWord) {
             deleteStart = this._findWordBoundary(sel.start, -1);
           } else {
@@ -532,12 +531,26 @@ export class Editor {
         }
       }
 
-      if (deleteStart !== deleteEnd) {
-        const deletedText = this._document.getTextRange(deleteStart, deleteEnd);
-        this._document.replaceRange(deleteStart, deleteEnd, '');
-        changes.push({
-          startOffset: deleteStart,
-          deletedLength: deleteEnd - deleteStart,
+      deleteRanges.push({
+        start: deleteStart,
+        end: deleteEnd,
+        cursorPos: forward ? deleteStart : deleteStart, // Where cursor should be after delete
+      });
+    }
+
+    // Step 2: Perform deletions from end to start to preserve offsets
+    this._batchingUndo = true;
+    const changes = [];
+
+    // Process in reverse order (descending by offset)
+    for (let i = deleteRanges.length - 1; i >= 0; i--) {
+      const range = deleteRanges[i];
+      if (range.start !== range.end) {
+        const deletedText = this._document.getTextRange(range.start, range.end);
+        this._document.replaceRange(range.start, range.end, '');
+        changes.unshift({
+          startOffset: range.start,
+          deletedLength: range.end - range.start,
           deletedText,
           insertedText: '',
         });
@@ -555,29 +568,22 @@ export class Editor {
       this._redoStack = [];
     }
 
-    // Update selections
-    const originalSels = selectionsBefore.sorted(false);
+    // Step 3: Calculate new cursor positions
+    // Process in ascending order, tracking cumulative offset changes
     const newSelections = [];
     let cumulativeOffset = 0;
 
-    for (let i = 0; i < originalSels.length; i++) {
-      const sel = originalSels[i];
-      let newPos;
+    for (let i = 0; i < deleteRanges.length; i++) {
+      const range = deleteRanges[i];
+      const deleteLength = range.end - range.start;
 
-      if (sel.isEmpty) {
-        if (forward) {
-          newPos = sel.start + cumulativeOffset;
-        } else {
-          const deleteAmount = byWord ? sel.start - this._findWordBoundary(sel.start, -1) : Math.min(1, sel.start);
-          newPos = sel.start - deleteAmount + cumulativeOffset;
-          cumulativeOffset -= deleteAmount;
-        }
-      } else {
-        newPos = sel.start + cumulativeOffset;
-        cumulativeOffset -= sel.end - sel.start;
-      }
-
+      // New cursor position is the delete start (where text was removed)
+      // adjusted by how much text was deleted before this position
+      const newPos = range.cursorPos + cumulativeOffset;
       newSelections.push(Selection.cursor(Math.max(0, newPos)));
+
+      // Update cumulative offset for subsequent cursors
+      cumulativeOffset -= deleteLength;
     }
 
     this._selections.setAll(newSelections);
@@ -736,7 +742,7 @@ export class Editor {
   /**
    * Find word boundary from offset (VS Code style)
    * Word characters: letters, digits, underscore
-   * Punctuation: each punctuation char is treated as a separate "word"
+   * Special stop chars: quotes, backticks, template literal markers
    * @private
    * @param {number} offset - Starting offset
    * @param {number} direction - -1 for backward, 1 for forward
@@ -749,7 +755,8 @@ export class Editor {
     // Character classification
     const isWordChar = (char) => /[\w]/.test(char); // letters, digits, underscore
     const isWhitespace = (char) => /\s/.test(char);
-    // Everything else is punctuation
+    // Stop chars: each of these is treated as a single boundary
+    const isStopChar = (char) => /[`'"(){}[\],;]/.test(char);
 
     if (direction < 0) {
       // Ctrl+Left: Move to start of current/previous word
@@ -770,9 +777,14 @@ export class Editor {
         while (pos > 0 && isWordChar(text[pos - 1])) {
           pos--;
         }
-      } else {
-        // At punctuation: move back one char (each punctuation is its own "word")
+      } else if (isStopChar(charBefore)) {
+        // Stop chars: move back one char only
         pos--;
+      } else {
+        // Other punctuation (operators like . = + -): move through consecutive same-type
+        while (pos > 0 && !isWordChar(text[pos - 1]) && !isWhitespace(text[pos - 1]) && !isStopChar(text[pos - 1])) {
+          pos--;
+        }
       }
     } else {
       // Ctrl+Right: Move through current token (VS Code style)
@@ -785,20 +797,20 @@ export class Editor {
         while (pos < text.length && isWhitespace(text[pos])) {
           pos++;
         }
-        // Now at next token - recursively apply same logic
+        // Now at next token - apply same logic (non-recursive)
         if (pos < text.length) {
           const nextChar = text[pos];
           if (isWordChar(nextChar)) {
-            // Move through word
             while (pos < text.length && isWordChar(text[pos])) {
               pos++;
             }
+          } else if (isStopChar(nextChar)) {
+            pos++; // Single stop char
           } else {
-            // Move through consecutive punctuation
-            while (pos < text.length && !isWordChar(text[pos]) && !isWhitespace(text[pos])) {
+            // Other punctuation followed by word
+            while (pos < text.length && !isWordChar(text[pos]) && !isWhitespace(text[pos]) && !isStopChar(text[pos])) {
               pos++;
             }
-            // If followed directly by word, continue through word
             while (pos < text.length && isWordChar(text[pos])) {
               pos++;
             }
@@ -809,9 +821,12 @@ export class Editor {
         while (pos < text.length && isWordChar(text[pos])) {
           pos++;
         }
+      } else if (isStopChar(charAtPos)) {
+        // Stop char: move past just this one char
+        pos++;
       } else {
-        // At punctuation: move through all consecutive punctuation
-        while (pos < text.length && !isWordChar(text[pos]) && !isWhitespace(text[pos])) {
+        // Other punctuation (like .): move through consecutive, then through following word
+        while (pos < text.length && !isWordChar(text[pos]) && !isWhitespace(text[pos]) && !isStopChar(text[pos])) {
           pos++;
         }
         // If followed directly by word chars, continue through word
