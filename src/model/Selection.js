@@ -187,12 +187,17 @@ export class Selection {
 
   /**
    * Create from legacy {start, end} format
+   * Note: {start, end} is treated as {anchor, cursor} when determining direction
    * @param {{ start: number, end: number }} obj - Plain object
    * @returns {Selection}
    */
   static fromObject(obj) {
     const isReversed = obj.start > obj.end;
-    return new Selection(obj.start, obj.end, isReversed);
+    // When reversed, swap so _startOffset is always the smaller value
+    if (isReversed) {
+      return new Selection(obj.end, obj.start, true);
+    }
+    return new Selection(obj.start, obj.end, false);
   }
 
   /**
@@ -206,12 +211,17 @@ export class Selection {
 
   /**
    * Create a range selection
-   * @param {number} anchor - Anchor position
-   * @param {number} cursor - Cursor position
+   * @param {number} anchor - Anchor position (fixed point)
+   * @param {number} cursor - Cursor position (movable point)
    * @returns {Selection}
    */
   static range(anchor, cursor) {
     const isReversed = anchor > cursor;
-    return new Selection(anchor, cursor, isReversed);
+    // When reversed, we need to swap so that _startOffset is always the smaller value
+    // The getters will then use _isReversed to correctly return anchor/cursor
+    if (isReversed) {
+      return new Selection(cursor, anchor, true);
+    }
+    return new Selection(anchor, cursor, false);
   }
 }

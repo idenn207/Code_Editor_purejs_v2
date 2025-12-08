@@ -133,12 +133,15 @@ export class SelectionCollection {
 
   /**
    * Set single selection (replaces all)
-   * @param {number} start - Start offset
-   * @param {number} end - End offset
-   * @param {boolean} isReversed - Whether selection is reversed
+   * @param {number} start - Start offset (smaller value, normalized)
+   * @param {number} end - End offset (larger value, normalized)
+   * @param {boolean} isReversed - Whether selection is reversed (cursor at start)
    * @returns {SelectionCollection} this (for chaining)
    */
   setSingle(start, end, isReversed = false) {
+    // start/end are already normalized (start <= end)
+    // If reversed, cursor is at start, anchor is at end
+    // Selection constructor expects _startOffset to be smaller
     this._selections = [new Selection(start, end, isReversed)];
     this._primaryIndex = 0;
     return this;

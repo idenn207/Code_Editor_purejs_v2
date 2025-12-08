@@ -197,7 +197,8 @@ export class Editor {
       if (sel instanceof Selection) {
         return sel.withOffsets(start, end);
       }
-      return new Selection(start, end, start > end);
+      // For plain objects, use fromObject which handles direction correctly
+      return Selection.fromObject({ start, end });
     });
 
     this._selections.setAll(clampedSelections);
@@ -224,8 +225,8 @@ export class Editor {
 
   /**
    * Add a new selection (keeps existing selections)
-   * @param {number} start - Selection start
-   * @param {number} end - Selection end
+   * @param {number} start - Selection start (anchor)
+   * @param {number} end - Selection end (cursor)
    */
   addSelection(start, end) {
     const docLength = this._document.getLength();
@@ -233,11 +234,13 @@ export class Editor {
     const clampedEnd = Math.max(0, Math.min(end, docLength));
 
     // Don't add duplicate selection
-    if (this._selections.hasSelectionAt(clampedStart, clampedEnd)) {
+    const minPos = Math.min(clampedStart, clampedEnd);
+    const maxPos = Math.max(clampedStart, clampedEnd);
+    if (this._selections.hasSelectionAt(minPos, maxPos)) {
       return;
     }
 
-    this._selections.add(new Selection(clampedStart, clampedEnd));
+    this._selections.add(Selection.range(clampedStart, clampedEnd));
     this._view.scrollToCursor();
     this.emit('selectionChange', this._selections);
   }
