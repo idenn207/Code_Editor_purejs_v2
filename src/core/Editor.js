@@ -735,7 +735,8 @@ export class Editor {
 
   /**
    * Find word boundary from offset (VS Code style)
-   * Stops at: word boundaries, camelCase transitions, punctuation, whitespace
+   * Word characters: letters, digits, underscore
+   * Punctuation: each punctuation char is treated as a separate "word"
    * @private
    * @param {number} offset - Starting offset
    * @param {number} direction - -1 for backward, 1 for forward
@@ -745,133 +746,78 @@ export class Editor {
     const text = this._document.getText();
     let pos = offset;
 
-    // Character classification for VS Code-style word movement
-    const getCharType = (char) => {
-      if (!char) return 'none';
-      if (/\s/.test(char)) return 'whitespace';
-      if (/[a-z]/.test(char)) return 'lower';
-      if (/[A-Z]/.test(char)) return 'upper';
-      if (/[0-9]/.test(char)) return 'digit';
-      if (/[_]/.test(char)) return 'underscore';
-      return 'punctuation';
-    };
+    // Character classification
+    const isWordChar = (char) => /[\w]/.test(char); // letters, digits, underscore
+    const isWhitespace = (char) => /\s/.test(char);
+    // Everything else is punctuation
 
     if (direction < 0) {
-      // Move backward (Ctrl+Left)
+      // Ctrl+Left: Move to start of current/previous word
       if (pos === 0) return 0;
 
-      // Skip whitespace first
-      while (pos > 0 && getCharType(text[pos - 1]) === 'whitespace') {
+      // Step 1: Skip whitespace going backward
+      while (pos > 0 && isWhitespace(text[pos - 1])) {
         pos--;
       }
 
       if (pos === 0) return 0;
 
-      const startType = getCharType(text[pos - 1]);
+      // Step 2: Check what kind of character we're at
+      const charBefore = text[pos - 1];
 
-      // Handle punctuation: stop after one punctuation char
-      if (startType === 'punctuation') {
-        return pos - 1;
-      }
-
-      // Move through same type characters
-      while (pos > 0) {
-        const prevType = getCharType(text[pos - 1]);
-
-        // Stop at whitespace or punctuation
-        if (prevType === 'whitespace' || prevType === 'punctuation') {
-          break;
+      if (isWordChar(charBefore)) {
+        // At end of word: move to start of word
+        while (pos > 0 && isWordChar(text[pos - 1])) {
+          pos--;
         }
-
-        // Handle camelCase: stop when going from lowercase to uppercase
-        // e.g., "camelCase" - cursor at 'C', moving left stops at 'c'
-        if (startType === 'upper' && prevType === 'lower') {
-          break;
-        }
-
-        // Handle ALLCAPS followed by lowercase: "XMLParser" - stop between "XML" and "Parser"
-        if (startType === 'lower' && prevType === 'upper') {
-          // Continue if we just started (one uppercase before lowercase is fine)
-          // Stop if there are multiple uppercase letters before
-          if (pos > 1 && getCharType(text[pos - 2]) === 'upper') {
-            break;
-          }
-        }
-
-        // Handle transition from letters to digits or vice versa
-        if ((startType === 'lower' || startType === 'upper') && prevType === 'digit') {
-          break;
-        }
-        if (startType === 'digit' && (prevType === 'lower' || prevType === 'upper')) {
-          break;
-        }
-
+      } else {
+        // At punctuation: move back one char (each punctuation is its own "word")
         pos--;
       }
     } else {
-      // Move forward (Ctrl+Right)
+      // Ctrl+Right: Move through current token (VS Code style)
       if (pos >= text.length) return text.length;
 
-      const startType = getCharType(text[pos]);
+      const charAtPos = text[pos];
 
-      // Skip current word/punctuation first, then skip whitespace
-      if (startType === 'whitespace') {
-        // At whitespace: skip whitespace, then stop at next word start
-        while (pos < text.length && getCharType(text[pos]) === 'whitespace') {
+      if (isWhitespace(charAtPos)) {
+        // At whitespace: skip whitespace, then move through next token
+        while (pos < text.length && isWhitespace(text[pos])) {
           pos++;
         }
-        return pos;
-      }
-
-      if (startType === 'punctuation') {
-        // At punctuation: move past this punctuation char
-        pos++;
-        // Skip any following whitespace
-        while (pos < text.length && getCharType(text[pos]) === 'whitespace') {
-          pos++;
-        }
-        return pos;
-      }
-
-      // At word: move to end of word, then skip whitespace
-      while (pos < text.length) {
-        const currType = getCharType(text[pos]);
-
-        // Stop at whitespace or punctuation
-        if (currType === 'whitespace' || currType === 'punctuation') {
-          break;
-        }
-
-        // Handle camelCase: stop at uppercase letter (start of new word part)
-        if (currType === 'upper' && pos > offset) {
-          const prevType = getCharType(text[pos - 1]);
-          if (prevType === 'lower') {
-            break;
-          }
-          // Handle "XMLParser": at second 'X', continue; at 'P', stop
-          if (prevType === 'upper' && pos + 1 < text.length) {
-            const nextType = getCharType(text[pos + 1]);
-            if (nextType === 'lower') {
-              break;
+        // Now at next token - recursively apply same logic
+        if (pos < text.length) {
+          const nextChar = text[pos];
+          if (isWordChar(nextChar)) {
+            // Move through word
+            while (pos < text.length && isWordChar(text[pos])) {
+              pos++;
+            }
+          } else {
+            // Move through consecutive punctuation
+            while (pos < text.length && !isWordChar(text[pos]) && !isWhitespace(text[pos])) {
+              pos++;
+            }
+            // If followed directly by word, continue through word
+            while (pos < text.length && isWordChar(text[pos])) {
+              pos++;
             }
           }
         }
-
-        // Handle transition from letters to digits or vice versa
-        if (pos > offset) {
-          const prevType = getCharType(text[pos - 1]);
-          if ((currType === 'digit' && (prevType === 'lower' || prevType === 'upper')) ||
-              ((currType === 'lower' || currType === 'upper') && prevType === 'digit')) {
-            break;
-          }
+      } else if (isWordChar(charAtPos)) {
+        // At word: move to end of word
+        while (pos < text.length && isWordChar(text[pos])) {
+          pos++;
         }
-
-        pos++;
-      }
-
-      // Skip trailing whitespace
-      while (pos < text.length && getCharType(text[pos]) === 'whitespace') {
-        pos++;
+      } else {
+        // At punctuation: move through all consecutive punctuation
+        while (pos < text.length && !isWordChar(text[pos]) && !isWhitespace(text[pos])) {
+          pos++;
+        }
+        // If followed directly by word chars, continue through word
+        while (pos < text.length && isWordChar(text[pos])) {
+          pos++;
+        }
       }
     }
 
