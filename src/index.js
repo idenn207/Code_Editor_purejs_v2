@@ -32,8 +32,25 @@ export { IndentGuideFeature } from './features/indentGuide/IndentGuideFeature.js
 export { MultiCursorFeature } from './features/multiCursor/MultiCursorFeature.js';
 export { SearchFeature } from './features/search/SearchFeature.js';
 
+// IDE Components
+export { IDE } from './ide/IDE.js';
+export { ActivityBar } from './ide/ActivityBar.js';
+export { Sidebar } from './ide/Sidebar.js';
+export { FileExplorer } from './ide/FileExplorer.js';
+export { TabBar } from './ide/TabBar.js';
+export { EditorArea } from './ide/EditorArea.js';
+export { StatusBar } from './ide/StatusBar.js';
+
+// IDE Models
+export { FileNode } from './model/FileNode.js';
+export { Tab } from './model/Tab.js';
+
+// IDE Services
+export { FileService } from './services/FileService.js';
+export { WorkspaceService } from './services/WorkspaceService.js';
+
 // Version
-export const VERSION = '2.0.0';
+export const VERSION = '2.1.0';
 
 // Feature detection helper
 export function checkBrowserSupport() {
