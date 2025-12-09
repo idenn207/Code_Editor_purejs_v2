@@ -237,7 +237,7 @@ export class EditorArea {
     this._initFeatures();
 
     // Hide editor initially (show welcome)
-    this._editor.view._element.style.display = 'none';
+    this._editor.view.container.style.display = 'none';
   }
 
   /**
@@ -329,7 +329,7 @@ export class EditorArea {
    */
   _showWelcome() {
     this._welcomeElement.style.display = '';
-    this._editor.view._element.style.display = 'none';
+    this._editor.view.container.style.display = 'none';
   }
 
   /**
@@ -337,7 +337,7 @@ export class EditorArea {
    */
   _hideWelcome() {
     this._welcomeElement.style.display = 'none';
-    this._editor.view._element.style.display = '';
+    this._editor.view.container.style.display = '';
   }
 
   /**
