@@ -91,6 +91,11 @@ export class AutoIndentFeature {
     if (event.key === 'Enter' && !event.shiftKey) {
       this._handleEnter(event);
     }
+
+    // Handle Tab key for indentation (only without Shift)
+    if (event.key === 'Tab' && !event.shiftKey) {
+      this._handleIndent(event);
+    }
   }
 
   _handleEnter(event) {
@@ -259,6 +264,229 @@ export class AutoIndentFeature {
     // Position: start + '\n'.length + baseIndent.length + indent.length
     const cursorPos = start + 1 + baseIndent.length + indent.length;
     this._editor.setSelection(cursorPos, cursorPos);
+  }
+
+  /**
+   * Handle Tab key - insert indent at cursor or indent selected lines
+   * @param {KeyboardEvent} event
+   */
+  _handleIndent(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    // Check for multi-cursor mode
+    if (this._editor.hasMultipleCursors()) {
+      this._handleMultiCursorIndent();
+      return;
+    }
+
+    const { start, end } = this._editor.getSelection();
+    const indent = this._getIndentString();
+
+    // If no selection, just insert indent at cursor
+    if (start === end) {
+      this._editor.document.insert(start, indent);
+      const newPos = start + indent.length;
+      this._editor.setSelection(newPos, newPos);
+      return;
+    }
+
+    // If there's a selection, indent all selected lines
+    this._indentSelectedLines(start, end);
+  }
+
+  /**
+   * Handle Shift+Tab - dedent at cursor or dedent selected lines
+   * @param {KeyboardEvent} event
+   */
+  _handleDedent(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    // Check for multi-cursor mode
+    if (this._editor.hasMultipleCursors()) {
+      this._handleMultiCursorDedent();
+      return;
+    }
+
+    const { start, end } = this._editor.getSelection();
+
+    // Dedent lines (works for both cursor and selection)
+    this._dedentSelectedLines(start, end);
+  }
+
+  /**
+   * Indent all lines in selection range
+   */
+  _indentSelectedLines(start, end) {
+    const doc = this._editor.document;
+    const startPos = doc.offsetToPosition(start);
+    const endPos = doc.offsetToPosition(end);
+    const indent = this._getIndentString();
+
+    // Process lines from end to start to preserve offsets
+    for (let line = endPos.line; line >= startPos.line; line--) {
+      const lineStartOffset = doc.positionToOffset({ line, column: 0 });
+      doc.insert(lineStartOffset, indent);
+    }
+
+    // Adjust selection
+    const lineCount = endPos.line - startPos.line + 1;
+    const newStart = start + indent.length;
+    const newEnd = end + (indent.length * lineCount);
+    this._editor.setSelection(newStart, newEnd);
+  }
+
+  /**
+   * Dedent all lines in selection range
+   */
+  _dedentSelectedLines(start, end) {
+    const doc = this._editor.document;
+    const startPos = doc.offsetToPosition(start);
+    const endPos = doc.offsetToPosition(end);
+    const tabSize = this._tabSize;
+
+    let totalRemoved = 0;
+    let firstLineRemoved = 0;
+
+    // Process lines from end to start to preserve offsets
+    for (let line = endPos.line; line >= startPos.line; line--) {
+      const lineText = doc.getLine(line);
+      const lineStartOffset = doc.positionToOffset({ line, column: 0 });
+
+      // Calculate how much to remove
+      let removeCount = 0;
+      for (let i = 0; i < tabSize && i < lineText.length; i++) {
+        if (lineText[i] === ' ') {
+          removeCount++;
+        } else if (lineText[i] === '\t') {
+          removeCount++;
+          break;
+        } else {
+          break;
+        }
+      }
+
+      if (removeCount > 0) {
+        doc.replaceRange(lineStartOffset, lineStartOffset + removeCount, '');
+        totalRemoved += removeCount;
+        if (line === startPos.line) {
+          firstLineRemoved = removeCount;
+        }
+      }
+    }
+
+    // Adjust selection
+    const newStart = Math.max(0, start - firstLineRemoved);
+    const newEnd = Math.max(newStart, end - totalRemoved);
+    this._editor.setSelection(newStart, newEnd);
+  }
+
+  /**
+   * Handle Tab key for multiple cursors
+   */
+  _handleMultiCursorIndent() {
+    const doc = this._editor.document;
+    const selections = this._editor.getSelections();
+    const indent = this._getIndentString();
+
+    // Process from end to start to preserve offsets
+    const sortedSels = selections.sorted(true); // descending
+
+    for (const sel of sortedSels) {
+      doc.insert(sel.start, indent);
+    }
+
+    // Calculate new cursor positions
+    const ascendingSels = selections.sorted(false);
+    const newSelections = [];
+    let cumulativeOffset = 0;
+
+    for (const sel of ascendingSels) {
+      const newPos = sel.start + cumulativeOffset + indent.length;
+      newSelections.push(Selection.cursor(newPos));
+      cumulativeOffset += indent.length;
+    }
+
+    this._editor.setSelections(newSelections);
+  }
+
+  /**
+   * Handle Shift+Tab for multiple cursors
+   */
+  _handleMultiCursorDedent() {
+    const doc = this._editor.document;
+    const selections = this._editor.getSelections();
+    const tabSize = this._tabSize;
+
+    // Calculate removal amounts for each cursor
+    const removalAmounts = [];
+    for (const sel of selections.all) {
+      const pos = doc.offsetToPosition(sel.start);
+      const lineText = doc.getLine(pos.line);
+      const lineStartOffset = doc.positionToOffset({ line: pos.line, column: 0 });
+
+      let removeCount = 0;
+      for (let i = 0; i < tabSize && i < lineText.length; i++) {
+        if (lineText[i] === ' ') {
+          removeCount++;
+        } else if (lineText[i] === '\t') {
+          removeCount++;
+          break;
+        } else {
+          break;
+        }
+      }
+
+      removalAmounts.push({ sel, lineStartOffset, removeCount, pos });
+    }
+
+    // Process from end to start to preserve offsets
+    const sortedRemovals = [...removalAmounts].sort((a, b) => b.lineStartOffset - a.lineStartOffset);
+
+    // Track which lines we've already processed (for multi-cursors on same line)
+    const processedLines = new Set();
+
+    for (const { pos, lineStartOffset, removeCount } of sortedRemovals) {
+      if (removeCount > 0 && !processedLines.has(pos.line)) {
+        doc.replaceRange(lineStartOffset, lineStartOffset + removeCount, '');
+        processedLines.add(pos.line);
+      }
+    }
+
+    // Calculate new cursor positions
+    const ascendingSels = selections.sorted(false);
+    const newSelections = [];
+    let cumulativeRemoved = 0;
+    const lineRemovalMap = new Map();
+
+    // Build map of line removals in ascending order
+    const ascendingRemovals = [...removalAmounts].sort((a, b) => a.lineStartOffset - b.lineStartOffset);
+    for (const { pos, removeCount } of ascendingRemovals) {
+      if (!lineRemovalMap.has(pos.line)) {
+        lineRemovalMap.set(pos.line, removeCount);
+      }
+    }
+
+    for (const sel of ascendingSels) {
+      const pos = doc.offsetToPosition(sel.start);
+      const removal = lineRemovalMap.get(pos.line) || 0;
+
+      // Calculate cumulative removal from previous lines
+      let prevLinesRemoval = 0;
+      for (const [line, amount] of lineRemovalMap) {
+        if (line < pos.line) {
+          prevLinesRemoval += amount;
+        }
+      }
+
+      const newCol = Math.max(0, pos.column - removal);
+      const lineStartOffset = doc.positionToOffset({ line: pos.line, column: 0 }) - prevLinesRemoval;
+      const newPos = lineStartOffset + newCol;
+      newSelections.push(Selection.cursor(Math.max(0, newPos)));
+    }
+
+    this._editor.setSelections(newSelections);
   }
 
   // ----------------------------------------

@@ -329,22 +329,6 @@ export class StatusBar {
    */
   _createDefaultItems() {
     // Left side items
-    this.addItem('branch', {
-      position: 'left',
-      icon: 'branch',
-      text: 'main',
-      tooltip: 'Source Control',
-      priority: 1,
-    });
-
-    this.addItem('sync', {
-      position: 'left',
-      icon: 'sync',
-      text: '',
-      tooltip: 'Synchronize Changes',
-      priority: 2,
-    });
-
     this.addItem('problems', {
       position: 'left',
       icon: 'error',
@@ -407,14 +391,6 @@ export class StatusBar {
       tooltip: 'Select Language Mode',
       priority: 6,
       onClick: () => this._emit('selectLanguage', {}),
-    });
-
-    this.addItem('notifications', {
-      position: 'right',
-      icon: 'bell',
-      text: '',
-      tooltip: 'Notifications',
-      priority: 10,
     });
   }
 

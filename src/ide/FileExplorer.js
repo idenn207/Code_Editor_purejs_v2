@@ -447,15 +447,14 @@ export class FileExplorer {
     const node = this._findNodeByElement(item);
     if (!node) return;
 
-    // Click on toggle arrow
-    const toggle = e.target.closest('.ide-tree-toggle');
-    if (toggle && node.type === 'directory') {
+    // Select node
+    this._selectNode(node);
+
+    // If directory, toggle expand/collapse on single click
+    if (node.type === 'directory') {
       this.toggleNode(node);
       return;
     }
-
-    // Select node
-    this._selectNode(node);
 
     // If file, emit select event
     if (node.type === 'file') {

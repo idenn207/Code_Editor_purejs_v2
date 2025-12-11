@@ -172,6 +172,41 @@ export class WorkspaceService {
   }
 
   /**
+   * Force close a tab by ID (skip dirty check)
+   * Used when user chooses "Don't Save" in confirmation dialog
+   * @param {string} tabId - Tab ID
+   * @returns {boolean} True if closed successfully
+   */
+  forceCloseTabById(tabId) {
+    const index = this._openTabs.findIndex((t) => t.id === tabId);
+    if (index === -1) return false;
+
+    const tab = this._openTabs[index];
+
+    // Remove tab without checking dirty state
+    this._openTabs.splice(index, 1);
+
+    // Adjust active index
+    if (this._activeTabIndex >= this._openTabs.length) {
+      this._activeTabIndex = this._openTabs.length - 1;
+    } else if (this._activeTabIndex > index) {
+      this._activeTabIndex--;
+    }
+
+    this._emit('tabClosed', { tab, index });
+
+    // Activate adjacent tab if available
+    if (this._activeTabIndex >= 0 && this._openTabs.length > 0) {
+      this._emit('tabActivated', {
+        tab: this._openTabs[this._activeTabIndex],
+        index: this._activeTabIndex,
+      });
+    }
+
+    return true;
+  }
+
+  /**
    * Activate a tab by index
    * @param {number} index - Tab index
    */

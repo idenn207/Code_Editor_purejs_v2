@@ -282,13 +282,16 @@ export class EditorArea {
     });
 
     this._tabBar.on('tabClose', ({ tabId }) => {
+      // Close the tab in WorkspaceService
+      if (this._workspaceService) {
+        this._workspaceService.closeTabById(tabId);
+      }
       this._emit('tabClose', { tabId });
     });
 
     this._tabBar.on('tabCloseRequest', ({ tab, tabId }) => {
-      // For now, just close - parent can handle save dialog
-      this._tabBar.removeTab(tabId);
-      this._emit('tabClose', { tabId });
+      // Show confirmation dialog for unsaved changes
+      this._showUnsavedChangesDialog(tab, tabId);
     });
 
     // Editor change events
@@ -338,6 +341,127 @@ export class EditorArea {
   _hideWelcome() {
     this._welcomeElement.style.display = 'none';
     this._editor.view.container.style.display = '';
+  }
+
+  /**
+   * Show unsaved changes confirmation dialog
+   * @param {Tab} tab - Tab with unsaved changes
+   * @param {string} tabId - Tab ID
+   */
+  _showUnsavedChangesDialog(tab, tabId) {
+    // Create dialog overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'ide-dialog-overlay';
+
+    const dialog = document.createElement('div');
+    dialog.className = 'ide-dialog';
+
+    dialog.innerHTML = `
+      <div class="ide-dialog-header">Unsaved Changes</div>
+      <div class="ide-dialog-content">
+        Do you want to save the changes you made to <strong>${tab.name}</strong>?
+        <br><br>
+        Your changes will be lost if you don't save them.
+      </div>
+      <div class="ide-dialog-footer">
+        <button class="ide-dialog-btn ide-dialog-btn-secondary" data-action="cancel">Cancel</button>
+        <button class="ide-dialog-btn ide-dialog-btn-secondary" data-action="dont-save">Don't Save</button>
+        <button class="ide-dialog-btn ide-dialog-btn-primary" data-action="save">Save</button>
+      </div>
+    `;
+
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    // Focus the Save button
+    const saveBtn = dialog.querySelector('[data-action="save"]');
+    saveBtn?.focus();
+
+    // Handle button clicks
+    const handleAction = async (action) => {
+      overlay.remove();
+
+      if (action === 'cancel') {
+        // Do nothing, keep tab open
+        return;
+      }
+
+      if (action === 'save') {
+        // Save the file first, then close
+        await this._saveAndCloseTab(tab, tabId);
+      } else if (action === 'dont-save') {
+        // Close without saving
+        this._closeTabWithoutSaving(tabId);
+      }
+    };
+
+    // Button click handlers
+    dialog.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-action]');
+      if (btn) {
+        handleAction(btn.dataset.action);
+      }
+    });
+
+    // Keyboard handlers (Escape = Cancel, Enter = Save)
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        handleAction('cancel');
+        document.removeEventListener('keydown', handleKeyDown);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        handleAction('save');
+        document.removeEventListener('keydown', handleKeyDown);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+
+    // Click outside to cancel
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        handleAction('cancel');
+      }
+    });
+  }
+
+  /**
+   * Save file and close tab
+   * @param {Tab} tab - Tab to save
+   * @param {string} tabId - Tab ID
+   */
+  async _saveAndCloseTab(tab, tabId) {
+    try {
+      if (this._fileService && tab.path) {
+        // Sync content from editor to tab and file service
+        const content = this._editor.getValue();
+        tab.setContent(content);
+        this._fileService.updateFileContent(tab.path, content);
+
+        // Save the file
+        await this._fileService.saveFile(tab.path);
+        tab.markClean();
+      }
+
+      // Now close the tab
+      this._closeTabWithoutSaving(tabId);
+    } catch (err) {
+      console.error('Failed to save file:', err);
+      this._emit('error', { message: 'Failed to save file', error: err });
+    }
+  }
+
+  /**
+   * Close tab without saving
+   * @param {string} tabId - Tab ID
+   */
+  _closeTabWithoutSaving(tabId) {
+    this._tabBar.removeTab(tabId);
+    if (this._workspaceService) {
+      // Use forceCloseTabById to skip dirty check
+      this._workspaceService.forceCloseTabById(tabId);
+    }
+    this._emit('tabClose', { tabId });
   }
 
   /**

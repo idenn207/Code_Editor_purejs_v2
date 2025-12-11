@@ -156,7 +156,13 @@
 }
 
 .ec-line {
-  min-height: 1em;
+  /* Empty lines maintain height through &nbsp; placeholder */
+}
+
+/* Virtual scrolling spacers */
+.ec-spacer-top,
+.ec-spacer-bottom {
+  flex-shrink: 0;
 }
 
 /* ============================================
@@ -295,7 +301,6 @@
 
 .ec-token-string-invalid {
   color: var(--ec-string);
-  text-decoration: underline wavy red;
 }
 
 .ec-token-number,
@@ -474,6 +479,12 @@
   margin-left: 10px;
   opacity: 0.6;
   font-size: 12px;
+}
+
+/* Matching prefix highlight */
+.ec-autocomplete-match {
+  color: #18a3ff;
+  font-weight: 600;
 }
 
 /* Auto-complete icon colors */

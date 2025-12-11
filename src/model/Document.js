@@ -61,6 +61,14 @@ export class Document {
   }
 
   /**
+   * Get a specific line's content
+   * @returns {string}
+   */
+  getLines() {
+    return this._lines;
+  }
+
+  /**
    * Get total number of lines
    * @returns {number}
    */
@@ -234,3 +242,4 @@ export class Document {
     return this._lines;
   }
 }
+

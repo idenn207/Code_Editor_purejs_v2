@@ -119,6 +119,14 @@ export class IDE {
     try {
       const activeTab = this._workspaceService.getActiveTab();
       if (activeTab && activeTab.isDirty) {
+        // Sync content from editor to tab and file service before saving
+        const editor = this._editorArea.getEditor();
+        if (editor) {
+          const content = editor.getValue();
+          activeTab.setContent(content);
+          this._fileService.updateFileContent(activeTab.path, content);
+        }
+
         await this._fileService.saveFile(activeTab.path);
         activeTab.markClean();
         this._editorArea.updateTabDirty(activeTab.id, false);

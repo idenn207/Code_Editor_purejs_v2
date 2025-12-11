@@ -38,14 +38,16 @@ export class AutocompleteFeature {
   _triggerPosition = null; // Position where completion was triggered
   _currentPrefix = '';
   _htmlContext = null; // HTML-specific context ('tag', etc.)
+  _cachedItems = null; // Cached completion items for filtering
 
   // Bound event handlers
   _boundHandleKeyDown = null;
   _boundHandleInput = null;
   _boundHandleSelectionChange = null;
 
-  // Debounce timer
+  // Debounce timers
   _debounceTimer = null;
+  _cursorMoveTimer = null;
 
   // ----------------------------------------
   // Constructor
@@ -218,7 +220,80 @@ export class AutocompleteFeature {
         this._widget.hide();
         return;
       }
+
+      // Debounce the update to avoid excessive processing
+      clearTimeout(this._cursorMoveTimer);
+      this._cursorMoveTimer = setTimeout(() => {
+        this._updateCompletionsForCursorMove();
+      }, 50);
     }
+  }
+
+  /**
+   * Update completions when cursor moves (arrow keys)
+   * Uses cached items and only filters instead of re-fetching completions
+   */
+  _updateCompletionsForCursorMove() {
+    if (this._triggerPosition === null) return;
+
+    const { end } = this._editor.getSelection();
+    const doc = this._editor.document;
+    const pos = doc.offsetToPosition(end);
+    const lineText = doc.getLine(pos.line);
+
+    // Calculate new prefix from trigger position to cursor
+    const triggerPos = doc.offsetToPosition(this._triggerPosition);
+    const newPrefix = lineText.slice(triggerPos.column, pos.column);
+
+    // Check if prefix is still valid (only word characters)
+    const language = this._editor.getLanguage();
+    let prefixPattern;
+    if (language === 'css') {
+      prefixPattern = /^[\w-]*$/;
+    } else {
+      prefixPattern = /^[\w$]*$/;
+    }
+
+    if (!prefixPattern.test(newPrefix)) {
+      this._widget.hide();
+      return;
+    }
+
+    // Skip if prefix hasn't changed
+    if (newPrefix === this._currentPrefix) {
+      return;
+    }
+
+    this._currentPrefix = newPrefix;
+
+    // Use cached items if available and filter them locally
+    if (this._cachedItems && this._cachedItems.length > 0) {
+      const filtered = this._filterCachedItems(this._cachedItems, newPrefix);
+      if (filtered.length === 0) {
+        this._widget.hide();
+        return;
+      }
+      this._widget.updateItems(filtered, newPrefix);
+    } else {
+      // Fallback: hide if no cached items
+      this._widget.hide();
+    }
+  }
+
+  /**
+   * Filter cached items by prefix
+   * @param {Array} items - Cached completion items
+   * @param {string} prefix - Current prefix
+   * @returns {Array} Filtered items
+   */
+  _filterCachedItems(items, prefix) {
+    if (!prefix) return items.slice(0, 50);
+
+    const lowerPrefix = prefix.toLowerCase();
+    return items.filter((item) => {
+      const label = typeof item === 'string' ? item : item.label;
+      return label.toLowerCase().startsWith(lowerPrefix);
+    }).slice(0, 30);
   }
 
   // ----------------------------------------
@@ -269,12 +344,16 @@ export class AutocompleteFeature {
 
     if (items.length === 0) {
       this._widget.hide();
+      this._cachedItems = null;
       return;
     }
 
+    // Cache items for filtering during cursor movement
+    this._cachedItems = items;
+
     // Get cursor rect for positioning
     const cursorRect = this._editor.view.getCursorRect();
-    this._widget.show(items, cursorRect);
+    this._widget.show(items, cursorRect, prefix);
   }
 
   _updateCompletions() {
@@ -316,7 +395,7 @@ export class AutocompleteFeature {
       return;
     }
 
-    this._widget.updateItems(items);
+    this._widget.updateItems(items, prefix);
   }
 
   _getCompletionContext() {
@@ -401,6 +480,7 @@ export class AutocompleteFeature {
     this._triggerPosition = null;
     this._currentPrefix = '';
     this._htmlContext = null;
+    this._cachedItems = null;
 
     // Return focus to editor
     this._editor.focus();
@@ -410,6 +490,7 @@ export class AutocompleteFeature {
     this._triggerPosition = null;
     this._currentPrefix = '';
     this._htmlContext = null;
+    this._cachedItems = null;
     this._editor.focus();
   }
 
@@ -471,6 +552,7 @@ export class AutocompleteFeature {
    */
   dispose() {
     clearTimeout(this._debounceTimer);
+    clearTimeout(this._cursorMoveTimer);
 
     if (this._boundHandleKeyDown) {
       this._editor.view.contentElement.removeEventListener(
@@ -490,6 +572,7 @@ export class AutocompleteFeature {
 
     this._widget?.dispose();
     this._service = null;
+    this._cachedItems = null;
     this._editor = null;
   }
 }

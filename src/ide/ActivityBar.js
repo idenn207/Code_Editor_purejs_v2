@@ -279,36 +279,7 @@ export class ActivityBar {
       position: 'top',
     });
 
-    this.addItem('git', {
-      icon: 'git',
-      label: 'Source Control',
-      tooltip: 'Source Control (Ctrl+Shift+G)',
-      position: 'top',
-    });
-
-    this.addItem('debug', {
-      icon: 'debug',
-      label: 'Run and Debug',
-      tooltip: 'Run and Debug (Ctrl+Shift+D)',
-      position: 'top',
-    });
-
-    this.addItem('extensions', {
-      icon: 'extensions',
-      label: 'Extensions',
-      tooltip: 'Extensions (Ctrl+Shift+X)',
-      position: 'top',
-    });
-
     // Bottom items
-    this.addItem('account', {
-      icon: 'account',
-      label: 'Account',
-      tooltip: 'Account',
-      position: 'bottom',
-      onClick: () => this._emit('accountClick', {}),
-    });
-
     this.addItem('settings', {
       icon: 'settings',
       label: 'Settings',

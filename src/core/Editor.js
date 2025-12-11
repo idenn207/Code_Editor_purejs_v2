@@ -743,6 +743,7 @@ export class Editor {
    * Find word boundary from offset (VS Code style)
    * Word characters: letters, digits, underscore
    * Special stop chars: quotes, backticks, template literal markers
+   * Line boundaries also act as word boundaries (Ctrl+Left/Right stops at line start/end)
    * @private
    * @param {number} offset - Starting offset
    * @param {number} direction - -1 for backward, 1 for forward
@@ -754,7 +755,8 @@ export class Editor {
 
     // Character classification
     const isWordChar = (char) => /[\w]/.test(char); // letters, digits, underscore
-    const isWhitespace = (char) => /\s/.test(char);
+    const isWhitespace = (char) => /[ \t]/.test(char); // Only space and tab, not newlines
+    const isNewline = (char) => char === '\n' || char === '\r';
     // Stop chars: each of these is treated as a single boundary
     const isStopChar = (char) => /[`'"(){}[\],;]/.test(char);
 
@@ -762,27 +764,44 @@ export class Editor {
       // Ctrl+Left: Move to start of current/previous word
       if (pos === 0) return 0;
 
-      // Step 1: Skip whitespace going backward
+      // Check if we're at the start of a line - if so, go to end of previous line
+      const charBefore = text[pos - 1];
+      if (isNewline(charBefore)) {
+        // Move past the newline to end of previous line
+        pos--;
+        // Handle \r\n
+        if (pos > 0 && text[pos - 1] === '\r' && text[pos] === '\n') {
+          pos--;
+        }
+        return pos;
+      }
+
+      // Step 1: Skip whitespace going backward (but stop at line boundary)
       while (pos > 0 && isWhitespace(text[pos - 1])) {
         pos--;
       }
 
       if (pos === 0) return 0;
 
-      // Step 2: Check what kind of character we're at
-      const charBefore = text[pos - 1];
+      // Check if we reached a newline - stop here (at line start)
+      if (isNewline(text[pos - 1])) {
+        return pos;
+      }
 
-      if (isWordChar(charBefore)) {
-        // At end of word: move to start of word
-        while (pos > 0 && isWordChar(text[pos - 1])) {
+      // Step 2: Check what kind of character we're at
+      const charBeforeNow = text[pos - 1];
+
+      if (isWordChar(charBeforeNow)) {
+        // At end of word: move to start of word (but stop at line boundary)
+        while (pos > 0 && isWordChar(text[pos - 1]) && !isNewline(text[pos - 1])) {
           pos--;
         }
-      } else if (isStopChar(charBefore)) {
+      } else if (isStopChar(charBeforeNow)) {
         // Stop chars: move back one char only
         pos--;
       } else {
         // Other punctuation (operators like . = + -): move through consecutive same-type
-        while (pos > 0 && !isWordChar(text[pos - 1]) && !isWhitespace(text[pos - 1]) && !isStopChar(text[pos - 1])) {
+        while (pos > 0 && !isWordChar(text[pos - 1]) && !isWhitespace(text[pos - 1]) && !isStopChar(text[pos - 1]) && !isNewline(text[pos - 1])) {
           pos--;
         }
       }
@@ -792,33 +811,45 @@ export class Editor {
 
       const charAtPos = text[pos];
 
+      // If at newline, move to start of next line
+      if (isNewline(charAtPos)) {
+        pos++;
+        // Handle \r\n
+        if (pos < text.length && text[pos - 1] === '\r' && text[pos] === '\n') {
+          pos++;
+        }
+        return pos;
+      }
+
       if (isWhitespace(charAtPos)) {
-        // At whitespace: skip whitespace, then move through next token
+        // At whitespace: skip whitespace, then move through next token (stop at newline)
         while (pos < text.length && isWhitespace(text[pos])) {
           pos++;
         }
+        // Check if we hit a newline - stop here (at line end)
+        if (pos >= text.length || isNewline(text[pos])) {
+          return pos;
+        }
         // Now at next token - apply same logic (non-recursive)
-        if (pos < text.length) {
-          const nextChar = text[pos];
-          if (isWordChar(nextChar)) {
-            while (pos < text.length && isWordChar(text[pos])) {
-              pos++;
-            }
-          } else if (isStopChar(nextChar)) {
-            pos++; // Single stop char
-          } else {
-            // Other punctuation followed by word
-            while (pos < text.length && !isWordChar(text[pos]) && !isWhitespace(text[pos]) && !isStopChar(text[pos])) {
-              pos++;
-            }
-            while (pos < text.length && isWordChar(text[pos])) {
-              pos++;
-            }
+        const nextChar = text[pos];
+        if (isWordChar(nextChar)) {
+          while (pos < text.length && isWordChar(text[pos]) && !isNewline(text[pos])) {
+            pos++;
+          }
+        } else if (isStopChar(nextChar)) {
+          pos++; // Single stop char
+        } else {
+          // Other punctuation followed by word
+          while (pos < text.length && !isWordChar(text[pos]) && !isWhitespace(text[pos]) && !isStopChar(text[pos]) && !isNewline(text[pos])) {
+            pos++;
+          }
+          while (pos < text.length && isWordChar(text[pos]) && !isNewline(text[pos])) {
+            pos++;
           }
         }
       } else if (isWordChar(charAtPos)) {
-        // At word: move to end of word
-        while (pos < text.length && isWordChar(text[pos])) {
+        // At word: move to end of word (stop at newline)
+        while (pos < text.length && isWordChar(text[pos]) && !isNewline(text[pos])) {
           pos++;
         }
       } else if (isStopChar(charAtPos)) {
@@ -826,11 +857,11 @@ export class Editor {
         pos++;
       } else {
         // Other punctuation (like .): move through consecutive, then through following word
-        while (pos < text.length && !isWordChar(text[pos]) && !isWhitespace(text[pos]) && !isStopChar(text[pos])) {
+        while (pos < text.length && !isWordChar(text[pos]) && !isWhitespace(text[pos]) && !isStopChar(text[pos]) && !isNewline(text[pos])) {
           pos++;
         }
-        // If followed directly by word chars, continue through word
-        while (pos < text.length && isWordChar(text[pos])) {
+        // If followed directly by word chars, continue through word (stop at newline)
+        while (pos < text.length && isWordChar(text[pos]) && !isNewline(text[pos])) {
           pos++;
         }
       }

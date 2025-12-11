@@ -546,6 +546,11 @@
   opacity: 0;
   transition: opacity 0.15s, background 0.15s;
   flex-shrink: 0;
+  color: #a0a0a0;
+}
+
+.ide-tab-close svg {
+  fill: #a0a0a0;
 }
 
 .ide-tab:hover .ide-tab-close,
@@ -860,10 +865,12 @@
   font-size: 14px;
   font-weight: 500;
   border-bottom: 1px solid var(--ide-border);
+  color: #ffffff;
 }
 
 .ide-dialog-content {
   padding: 16px;
+  color: #ffffff;
 }
 
 .ide-dialog-footer {

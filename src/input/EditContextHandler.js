@@ -74,6 +74,10 @@ export class EditContextHandler {
     // Make element focusable
     this._element.tabIndex = 0;
 
+    // Disable spellcheck
+    this._element.spellcheck = false;
+    this._element.setAttribute('spellcheck', 'false');
+
     // Bind events
     this._bindEditContextEvents();
     this._bindElementEvents();
@@ -139,11 +143,18 @@ export class EditContextHandler {
   // ----------------------------------------
 
   _handleTextUpdate(event) {
-    const { text } = event;
+    const { text, updateRangeStart, updateRangeEnd } = event;
 
-    // Use insertText for multi-cursor support
-    // insertText handles all cursors and updates selections properly
-    this._editor.insertText(text);
+    // EditContext textupdate already specifies the range to replace
+    // We need to use this range instead of using insertText which uses current selection
+    const doc = this._editor.document;
+
+    // Replace the specified range with the new text
+    doc.replaceRange(updateRangeStart, updateRangeEnd, text);
+
+    // Update cursor position to end of inserted text
+    const newPosition = updateRangeStart + text.length;
+    this._editor.setSelection(newPosition, newPosition);
 
     // Sync EditContext with new state
     this._syncEditContextText();
@@ -153,6 +164,7 @@ export class EditContextHandler {
     this._editor.emit('input', {
       type: 'textupdate',
       text,
+      range: { start: updateRangeStart, end: updateRangeEnd },
     });
   }
 

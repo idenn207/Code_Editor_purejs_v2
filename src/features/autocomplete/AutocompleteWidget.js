@@ -25,6 +25,7 @@ export class AutocompleteWidget {
   _visible = false;
   _items = [];
   _selectedIndex = 0;
+  _currentPrefix = '';
 
   // Callbacks
   _onSelect = null;
@@ -95,8 +96,9 @@ export class AutocompleteWidget {
    * Show autocomplete popup with items
    * @param {string[]} items - Completion items
    * @param {DOMRect} cursorRect - Cursor position rectangle
+   * @param {string} prefix - Current typing prefix (optional)
    */
-  show(items, cursorRect) {
+  show(items, cursorRect, prefix = '') {
     if (items.length === 0) {
       this.hide();
       return;
@@ -105,6 +107,7 @@ export class AutocompleteWidget {
     this._items = items;
     this._selectedIndex = 0;
     this._visible = true;
+    this._currentPrefix = prefix;
 
     this._renderItems();
     this._positionWidget(cursorRect);
@@ -175,8 +178,9 @@ export class AutocompleteWidget {
   /**
    * Update items (for filtering while typing)
    * @param {string[]} items - New filtered items
+   * @param {string} prefix - Current typing prefix (optional)
    */
-  updateItems(items) {
+  updateItems(items, prefix = '') {
     if (items.length === 0) {
       this.hide();
       return;
@@ -184,6 +188,18 @@ export class AutocompleteWidget {
 
     this._items = items;
     this._selectedIndex = Math.min(this._selectedIndex, items.length - 1);
+    if (prefix) {
+      this._currentPrefix = prefix;
+    }
+    this._renderItems();
+  }
+
+  /**
+   * Set the current prefix for highlighting
+   * @param {string} prefix
+   */
+  setPrefix(prefix) {
+    this._currentPrefix = prefix;
     this._renderItems();
   }
 
@@ -236,7 +252,25 @@ export class AutocompleteWidget {
       const li = document.createElement('li');
       li.className = 'ec-autocomplete-item';
       li.dataset.index = index;
-      li.textContent = this._getLabel(item);
+
+      // Highlight matching prefix
+      const label = this._getLabel(item);
+      const prefix = this._currentPrefix;
+
+      if (prefix && label.toLowerCase().startsWith(prefix.toLowerCase())) {
+        // Create highlighted prefix span
+        const matchSpan = document.createElement('span');
+        matchSpan.className = 'ec-autocomplete-match';
+        matchSpan.textContent = label.slice(0, prefix.length);
+
+        const restSpan = document.createElement('span');
+        restSpan.textContent = label.slice(prefix.length);
+
+        li.appendChild(matchSpan);
+        li.appendChild(restSpan);
+      } else {
+        li.textContent = label;
+      }
 
       if (index === this._selectedIndex) {
         li.classList.add('selected');

@@ -154,7 +154,30 @@ export class EditorView {
     this._lineHeight = this._options.lineHeight;
     document.body.removeChild(measureEl);
 
+    // Create a persistent measurement element for variable-width character measurement
+    this._measureElement = document.createElement('span');
+    this._measureElement.style.cssText = `
+      position: absolute;
+      visibility: hidden;
+      white-space: pre;
+      font-size: ${this._options.fontSize}px;
+      font-family: ${this._options.fontFamily};
+    `;
+    document.body.appendChild(this._measureElement);
+
     console.log(`[EditorView] Character metrics: ${this._charWidth.toFixed(2)}px × ${this._lineHeight}px`);
+  }
+
+  /**
+   * Measure the actual rendered width of text
+   * Handles variable-width characters (Korean, CJK, emoji, etc.)
+   * @param {string} text - Text to measure
+   * @returns {number} - Width in pixels
+   */
+  _measureTextWidth(text) {
+    if (!text) return 0;
+    this._measureElement.textContent = text;
+    return this._measureElement.getBoundingClientRect().width;
   }
 
   _bindEvents() {
@@ -209,13 +232,13 @@ export class EditorView {
   }
 
   _renderLines() {
-    const doc = this._editor.document;
-    const lines = doc.lines;
+    const doc = this._editor._document;
+    const lines = doc.getLines();
     const tokenizer = this._tokenizer;
 
+    // Clear and render all lines
     this._linesElement.innerHTML = '';
 
-    // Get tokens for each line using incremental tokenization
     let state = TokenizerState.initial();
 
     lines.forEach((lineText, index) => {
@@ -236,10 +259,10 @@ export class EditorView {
         lineEl.appendChild(span);
       }
 
-      // Ensure empty lines have content
+      // Ensure empty lines have content for height
       if (tokens.length === 0 || lineText === '') {
         const emptySpan = document.createElement('span');
-        emptySpan.textContent = '\u00A0'; // Non-breaking space
+        emptySpan.textContent = '\u00A0';
         lineEl.appendChild(emptySpan);
       }
 
@@ -256,10 +279,12 @@ export class EditorView {
   }
 
   _renderGutter() {
-    const lineCount = this._editor.document.getLineCount();
+    const totalLines = this._editor.document.getLineCount();
+
     this._gutterElement.innerHTML = '';
 
-    for (let i = 0; i < lineCount; i++) {
+    // Render all line numbers
+    for (let i = 0; i < totalLines; i++) {
       const lineNumEl = document.createElement('div');
       lineNumEl.className = 'ec-gutter-line';
       lineNumEl.textContent = String(i + 1);
@@ -286,8 +311,11 @@ export class EditorView {
       const pos = doc.offsetToPosition(cursorOffset);
 
       // Calculate position relative to content area (inside padding)
+      // Use actual text measurement for proper cursor positioning with variable-width chars
+      const lineText = doc.getLine(pos.line);
+      const textBeforeCursor = lineText.slice(0, pos.column);
       const top = pos.line * this._lineHeight + this._options.padding;
-      const left = pos.column * this._charWidth + this._options.padding;
+      const left = this._measureTextWidth(textBeforeCursor) + this._options.padding;
 
       // Create cursor element
       const cursorEl = document.createElement('div');
@@ -316,7 +344,7 @@ export class EditorView {
   _renderSelection() {
     this._selectionElement.innerHTML = '';
 
-    const doc = this._editor.document;
+    const doc = this._editor._document;
     const selections = this._editor.getSelections();
     const offset = this._options.padding;
 
@@ -335,17 +363,25 @@ export class EditorView {
         let endCol = line === endPos.line ? endPos.column : lineText.length;
 
         // Include newline in selection visual
-        if (line !== endPos.line) {
-          endCol = Math.max(endCol, lineText.length) + 0.5;
+        const hasTrailingNewline = line !== endPos.line;
+        if (hasTrailingNewline) {
+          endCol = Math.max(endCol, lineText.length);
         }
 
-        if (startCol === endCol) continue;
+        if (startCol === endCol && !hasTrailingNewline) continue;
+
+        // Use actual text measurement for proper selection with variable-width chars
+        const textBeforeStart = lineText.slice(0, startCol);
+        const textBeforeEnd = lineText.slice(0, endCol);
+        const startX = this._measureTextWidth(textBeforeStart);
+        const endX = this._measureTextWidth(textBeforeEnd);
+        const trailingWidth = hasTrailingNewline ? this._charWidth * 0.5 : 0;
 
         const selRect = document.createElement('div');
         selRect.className = 'ec-selection-rect';
         selRect.style.top = `${line * this._lineHeight + offset}px`;
-        selRect.style.left = `${startCol * this._charWidth + offset}px`;
-        selRect.style.width = `${Math.max((endCol - startCol) * this._charWidth, 4)}px`;
+        selRect.style.left = `${startX + offset}px`;
+        selRect.style.width = `${Math.max(endX - startX + trailingWidth, 4)}px`;
         selRect.style.height = `${this._lineHeight}px`;
 
         this._selectionElement.appendChild(selRect);
@@ -355,18 +391,26 @@ export class EditorView {
 
   _renderComposition(ranges) {
     this._compositionElement.innerHTML = '';
+    const padding = this._options.padding;
 
     ranges.forEach((range) => {
-      const doc = this._editor.document;
+      const doc = this._editor._document;
       const startPos = doc.offsetToPosition(range.start);
       const endPos = doc.offsetToPosition(range.end);
+
+      // Use actual text measurement for composition decoration with variable-width chars
+      const lineText = doc.getLine(startPos.line);
+      const textBeforeStart = lineText.slice(0, startPos.column);
+      const textBeforeEnd = lineText.slice(0, endPos.column);
+      const startX = this._measureTextWidth(textBeforeStart);
+      const width = this._measureTextWidth(textBeforeEnd) - startX;
 
       // For simplicity, handle single-line composition
       const decoration = document.createElement('div');
       decoration.className = `ec-composition-decoration ec-${range.underlineStyle}`;
-      decoration.style.top = `${startPos.line * this._lineHeight + this._lineHeight - 2}px`;
-      decoration.style.left = `${startPos.column * this._charWidth}px`;
-      decoration.style.width = `${(endPos.column - startPos.column) * this._charWidth}px`;
+      decoration.style.top = `${startPos.line * this._lineHeight + this._lineHeight - 2 + padding}px`;
+      decoration.style.left = `${startX + padding}px`;
+      decoration.style.width = `${Math.max(width, 4)}px`;
 
       this._compositionElement.appendChild(decoration);
     });
@@ -391,9 +435,51 @@ export class EditorView {
     const line = Math.max(0, Math.min(Math.floor(y / this._lineHeight), this._editor.document.getLineCount() - 1));
 
     const lineText = this._editor.document.getLine(line);
-    const column = Math.max(0, Math.min(Math.round(x / this._charWidth), lineText.length));
+
+    // Use binary search with actual text measurement for accurate column detection
+    // This handles variable-width characters (Korean, CJK, etc.)
+    const column = this._findColumnFromX(lineText, x);
 
     return { line, column };
+  }
+
+  /**
+   * Find the column position from an x coordinate using actual text measurement
+   * Uses binary search for efficiency with variable-width characters
+   * @param {string} lineText - The text of the line
+   * @param {number} targetX - The x coordinate to find
+   * @returns {number} - The column position
+   */
+  _findColumnFromX(lineText, targetX) {
+    if (lineText.length === 0 || targetX <= 0) return 0;
+
+    // Binary search for the column
+    let low = 0;
+    let high = lineText.length;
+
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      const midX = this._measureTextWidth(lineText.slice(0, mid));
+
+      if (midX < targetX) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+
+    // Check if we should round to the nearest character
+    if (low > 0 && low <= lineText.length) {
+      const prevX = this._measureTextWidth(lineText.slice(0, low - 1));
+      const currX = this._measureTextWidth(lineText.slice(0, low));
+      const midPoint = (prevX + currX) / 2;
+
+      if (targetX < midPoint) {
+        return low - 1;
+      }
+    }
+
+    return Math.min(low, lineText.length);
   }
 
   /**
@@ -402,12 +488,16 @@ export class EditorView {
    * @returns {DOMRect | null}
    */
   getCharacterRect(offset) {
-    const doc = this._editor.document;
+    const doc = this._editor._document;
     const pos = doc.offsetToPosition(offset);
 
     const contentRect = this._contentElement.getBoundingClientRect();
 
-    const x = contentRect.left + this._options.padding + pos.column * this._charWidth;
+    // Use actual text measurement for proper cursor positioning with variable-width chars
+    const lineText = doc.getLine(pos.line);
+    const textBeforeCursor = lineText.slice(0, pos.column);
+
+    const x = contentRect.left + this._options.padding + this._measureTextWidth(textBeforeCursor);
     const y = contentRect.top + this._options.padding + pos.line * this._lineHeight;
 
     return new DOMRect(x, y, this._charWidth, this._lineHeight);
@@ -499,6 +589,12 @@ export class EditorView {
     this._tokenizer?.clearCache();
     this._tokenizer = null;
     this._container.innerHTML = '';
+
+    // Clean up measurement element
+    if (this._measureElement) {
+      this._measureElement.remove();
+      this._measureElement = null;
+    }
   }
 }
 
