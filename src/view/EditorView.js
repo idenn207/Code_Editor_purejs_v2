@@ -48,6 +48,16 @@ export class EditorView {
   _charWidth = 0;
   _lineHeight = 0;
 
+  // Background tokenization state (Hybrid Viewport Priority)
+  _pendingTokenization = null; // setTimeout handle for background work
+  _lineStates = new Map(); // Cached tokenizer end states per line index
+  _isBackgroundTokenizing = false; // Flag to track background tokenization
+  _backgroundQueue = []; // Lines waiting to be tokenized in background
+
+  // Incremental rendering state
+  _currentLineCount = 0; // Track line count for incremental updates
+  _pendingChange = null; // Store change info for incremental render
+
   // ----------------------------------------
   // Constructor
   // ----------------------------------------
@@ -183,8 +193,25 @@ export class EditorView {
   _bindEvents() {
     // Invalidate tokenizer cache and re-render on document change
     this._editor.document.on('change', (change) => {
+      // Cancel any pending background tokenization
+      this._cancelBackgroundTokenization();
+
+      // Invalidate cached states from the changed line onwards
+      this._invalidateStatesFrom(change.startLine);
+
+      // Invalidate tokenizer cache
       this._tokenizer.invalidateFrom(change.startLine);
-      this._render();
+
+      // Store change for incremental render
+      this._pendingChange = change;
+
+      // Use incremental render instead of full re-render
+      this._renderIncremental(change);
+      this._renderGutter();
+      this._renderCursor();
+      this._renderSelection();
+
+      this._pendingChange = null;
     });
 
     // Re-render cursor/selection on selection change
@@ -231,43 +258,329 @@ export class EditorView {
     this._renderSelection();
   }
 
+  /**
+   * Full render - used for initial load and language change
+   */
   _renderLines() {
     const doc = this._editor._document;
     const lines = doc.getLines();
-    const tokenizer = this._tokenizer;
+    const totalLines = lines.length;
 
-    // Clear and render all lines
+    // Clear and create all line elements
     this._linesElement.innerHTML = '';
 
-    let state = TokenizerState.initial();
-
-    lines.forEach((lineText, index) => {
+    // Create all line elements
+    for (let i = 0; i < totalLines; i++) {
       const lineEl = document.createElement('div');
       lineEl.className = 'ec-line';
-      lineEl.dataset.lineIndex = index;
+      lineEl.dataset.lineIndex = i;
+      lineEl.innerHTML = '<span>\u00A0</span>';
+      this._linesElement.appendChild(lineEl);
+    }
 
-      // Get cached tokens or tokenize
-      const result = tokenizer.getLineTokens(index, lineText, state);
+    // Track current line count
+    this._currentLineCount = totalLines;
+
+    // Get visible range with buffer
+    const { startLine, endLine } = this._getVisibleLineRange();
+
+    // Phase 1: Synchronously tokenize visible lines (priority)
+    this._tokenizeAndRenderRange(0, endLine, lines);
+
+    // Phase 2: Schedule background tokenization for remaining lines
+    if (endLine < totalLines - 1) {
+      this._scheduleBackgroundTokenization(endLine + 1, totalLines - 1, lines);
+    }
+  }
+
+  /**
+   * Incremental render - only update changed lines (FAST)
+   * @param {Object} change - Change info from document
+   */
+  _renderIncremental(change) {
+    const doc = this._editor._document;
+    const lines = doc.getLines();
+    const newLineCount = lines.length;
+    const oldLineCount = this._currentLineCount;
+
+    // Calculate line delta from the change
+    const deletedLines = change.deletedText.split('\n').length - 1;
+    const insertedLines = change.insertedText.split('\n').length - 1;
+    const lineDelta = insertedLines - deletedLines;
+
+    // Handle line count changes
+    if (lineDelta > 0) {
+      // Lines were added - insert new DOM elements
+      const insertPoint = change.startLine + 1;
+      const referenceNode = this._linesElement.children[insertPoint] || null;
+
+      for (let i = 0; i < lineDelta; i++) {
+        const lineEl = document.createElement('div');
+        lineEl.className = 'ec-line';
+        lineEl.innerHTML = '<span>\u00A0</span>';
+        this._linesElement.insertBefore(lineEl, referenceNode);
+      }
+    } else if (lineDelta < 0) {
+      // Lines were removed - remove DOM elements
+      const removeCount = Math.abs(lineDelta);
+      const removeStart = change.startLine + 1;
+
+      for (let i = 0; i < removeCount; i++) {
+        const lineEl = this._linesElement.children[removeStart];
+        if (lineEl) {
+          lineEl.remove();
+        }
+      }
+    }
+
+    // Update line indices for all lines after the change
+    if (lineDelta !== 0) {
+      const startUpdate = change.startLine;
+      for (let i = startUpdate; i < this._linesElement.children.length; i++) {
+        this._linesElement.children[i].dataset.lineIndex = i;
+      }
+    }
+
+    // Update current line count
+    this._currentLineCount = newLineCount;
+
+    // Determine which lines need re-tokenization
+    // At minimum, re-tokenize the changed line and any new lines
+    const affectedStart = change.startLine;
+    const affectedEnd = Math.min(
+      change.startLine + Math.max(1, insertedLines + 1),
+      newLineCount - 1
+    );
+
+    // Re-tokenize affected lines
+    this._tokenizeAndRenderRange(affectedStart, affectedEnd, lines);
+
+    // For multi-line changes, schedule background tokenization for lines after
+    // (in case state changed and affects subsequent lines)
+    if (affectedEnd < newLineCount - 1) {
+      this._scheduleBackgroundTokenization(affectedEnd + 1, newLineCount - 1, lines);
+    }
+  }
+
+  /**
+   * Tokenize and render a range of lines synchronously
+   * @param {number} fromLine - Start line (inclusive)
+   * @param {number} toLine - End line (inclusive)
+   * @param {string[]} lines - All document lines
+   */
+  _tokenizeAndRenderRange(fromLine, toLine, lines) {
+    const tokenizer = this._tokenizer;
+
+    // Get starting state for the range
+    let state = this._getStateForLine(fromLine, lines);
+
+    for (let i = fromLine; i <= toLine; i++) {
+      const lineText = lines[i];
+      const lineEl = this._linesElement.children[i];
+
+      if (!lineEl) continue;
+
+      // Tokenize the line
+      const result = tokenizer.getLineTokens(i, lineText, state);
       const tokens = result.tokens;
+
+      // Cache the end state for this line
+      this._lineStates.set(i, result.endState);
       state = result.endState;
 
-      // Render tokens
-      for (const token of tokens) {
-        const span = document.createElement('span');
-        span.className = `ec-token ec-token-${this._normalizeTokenType(token.type)}`;
-        span.textContent = token.value;
-        lineEl.appendChild(span);
+      // Render tokens to DOM
+      this._renderLineTokens(lineEl, tokens, lineText);
+    }
+  }
+
+  /**
+   * Render tokens to a line element
+   * @param {HTMLElement} lineEl - The line DOM element
+   * @param {Array} tokens - Tokens to render
+   * @param {string} lineText - Original line text
+   */
+  _renderLineTokens(lineEl, tokens, lineText) {
+    lineEl.innerHTML = '';
+
+    for (const token of tokens) {
+      const span = document.createElement('span');
+      span.className = `ec-token ec-token-${this._normalizeTokenType(token.type)}`;
+      span.textContent = token.value;
+      lineEl.appendChild(span);
+    }
+
+    // Ensure empty lines have content for height
+    if (tokens.length === 0 || lineText === '') {
+      const emptySpan = document.createElement('span');
+      emptySpan.textContent = '\u00A0';
+      lineEl.appendChild(emptySpan);
+    }
+  }
+
+  /**
+   * Get the visible line range based on scroll position
+   * @returns {{ startLine: number, endLine: number }}
+   */
+  _getVisibleLineRange() {
+    const scrollTop = this._wrapper.scrollTop;
+    const viewportHeight = this._wrapper.clientHeight;
+    const totalLines = this._editor.document.getLineCount();
+
+    // Calculate visible lines
+    const startLine = Math.max(0, Math.floor(scrollTop / this._lineHeight) - 5); // 5 line buffer above
+    const endLine = Math.min(
+      totalLines - 1,
+      Math.ceil((scrollTop + viewportHeight) / this._lineHeight) + 5 // 5 line buffer below
+    );
+
+    return { startLine, endLine };
+  }
+
+  /**
+   * Get the tokenizer state for a specific line
+   * Must tokenize from the beginning if state is not cached
+   * @param {number} lineIndex - Target line index
+   * @param {string[]} lines - All document lines
+   * @returns {TokenizerState}
+   */
+  _getStateForLine(lineIndex, lines) {
+    if (lineIndex === 0) {
+      return TokenizerState.initial();
+    }
+
+    // Check if we have a cached state from the previous line
+    const cachedState = this._lineStates.get(lineIndex - 1);
+    if (cachedState) {
+      return cachedState;
+    }
+
+    // Find the nearest cached state before this line
+    let nearestLine = -1;
+    for (let i = lineIndex - 1; i >= 0; i--) {
+      if (this._lineStates.has(i)) {
+        nearestLine = i;
+        break;
+      }
+    }
+
+    // Tokenize from the nearest cached state (or beginning) to build up state
+    let state = nearestLine >= 0 ? this._lineStates.get(nearestLine) : TokenizerState.initial();
+    const startFrom = nearestLine >= 0 ? nearestLine + 1 : 0;
+
+    for (let i = startFrom; i < lineIndex; i++) {
+      const result = this._tokenizer.getLineTokens(i, lines[i], state);
+      this._lineStates.set(i, result.endState);
+      state = result.endState;
+    }
+
+    return state;
+  }
+
+  /**
+   * Schedule background tokenization using setTimeout(0)
+   * Uses VS Code's pattern - setTimeout is faster than requestIdleCallback
+   * @param {number} fromLine - Start line
+   * @param {number} toLine - End line
+   * @param {string[]} lines - All document lines
+   */
+  _scheduleBackgroundTokenization(fromLine, toLine, lines) {
+    this._cancelBackgroundTokenization();
+
+    this._backgroundQueue = [];
+    for (let i = fromLine; i <= toLine; i++) {
+      this._backgroundQueue.push(i);
+    }
+
+    this._isBackgroundTokenizing = true;
+    this._processBackgroundChunk(lines);
+  }
+
+  /**
+   * Process a chunk of background tokenization
+   * Uses setTimeout(0) for better performance than requestIdleCallback
+   * @param {string[]} lines - All document lines
+   */
+  _processBackgroundChunk(lines) {
+    if (!this._isBackgroundTokenizing || this._backgroundQueue.length === 0) {
+      this._isBackgroundTokenizing = false;
+      return;
+    }
+
+    const CHUNK_SIZE = 100; // Process 100 lines per chunk (VS Code uses larger chunks)
+    const chunk = this._backgroundQueue.splice(0, CHUNK_SIZE);
+
+    // Get state for first line in chunk
+    let state = this._getStateForLine(chunk[0], lines);
+    let statesConverged = false;
+
+    for (const lineIndex of chunk) {
+      // Check if document changed (lines array might be stale)
+      if (lineIndex >= this._linesElement.children.length) {
+        break;
       }
 
-      // Ensure empty lines have content for height
-      if (tokens.length === 0 || lineText === '') {
-        const emptySpan = document.createElement('span');
-        emptySpan.textContent = '\u00A0';
-        lineEl.appendChild(emptySpan);
+      const lineText = lines[lineIndex];
+      const lineEl = this._linesElement.children[lineIndex];
+
+      if (!lineEl) continue;
+
+      // Tokenize the line
+      const result = this._tokenizer.getLineTokens(lineIndex, lineText, state);
+
+      // Early termination: if new end state equals cached state, we can stop
+      const cachedEndState = this._lineStates.get(lineIndex);
+      if (cachedEndState && cachedEndState.equals(result.endState)) {
+        statesConverged = true;
+        // Still render this line but can stop after
       }
 
-      this._linesElement.appendChild(lineEl);
-    });
+      // Cache the end state
+      this._lineStates.set(lineIndex, result.endState);
+      state = result.endState;
+
+      // Render tokens to DOM
+      this._renderLineTokens(lineEl, result.tokens, lineText);
+
+      if (statesConverged) {
+        // States have converged - remaining lines don't need retokenization
+        this._backgroundQueue = [];
+        break;
+      }
+    }
+
+    // Schedule next chunk if there's more work
+    if (this._backgroundQueue.length > 0 && !statesConverged) {
+      this._pendingTokenization = setTimeout(() => {
+        this._processBackgroundChunk(lines);
+      }, 0);
+    } else {
+      this._isBackgroundTokenizing = false;
+    }
+  }
+
+  /**
+   * Cancel pending background tokenization
+   */
+  _cancelBackgroundTokenization() {
+    if (this._pendingTokenization !== null) {
+      clearTimeout(this._pendingTokenization);
+      this._pendingTokenization = null;
+    }
+    this._isBackgroundTokenizing = false;
+    this._backgroundQueue = [];
+  }
+
+  /**
+   * Invalidate cached states from a specific line onwards
+   * @param {number} fromLine - Line to invalidate from
+   */
+  _invalidateStatesFrom(fromLine) {
+    // Remove all cached states from fromLine onwards
+    for (const key of this._lineStates.keys()) {
+      if (key >= fromLine) {
+        this._lineStates.delete(key);
+      }
+    }
   }
 
   _normalizeTokenType(type) {
@@ -280,16 +593,24 @@ export class EditorView {
 
   _renderGutter() {
     const totalLines = this._editor.document.getLineCount();
+    const currentGutterLines = this._gutterElement.children.length;
 
-    this._gutterElement.innerHTML = '';
-
-    // Render all line numbers
-    for (let i = 0; i < totalLines; i++) {
-      const lineNumEl = document.createElement('div');
-      lineNumEl.className = 'ec-gutter-line';
-      lineNumEl.textContent = String(i + 1);
-      this._gutterElement.appendChild(lineNumEl);
+    // Incremental update: only add/remove what's needed
+    if (totalLines > currentGutterLines) {
+      // Add new line numbers
+      for (let i = currentGutterLines; i < totalLines; i++) {
+        const lineNumEl = document.createElement('div');
+        lineNumEl.className = 'ec-gutter-line';
+        lineNumEl.textContent = String(i + 1);
+        this._gutterElement.appendChild(lineNumEl);
+      }
+    } else if (totalLines < currentGutterLines) {
+      // Remove excess line numbers
+      while (this._gutterElement.children.length > totalLines) {
+        this._gutterElement.lastChild.remove();
+      }
     }
+    // If line count is the same, no DOM changes needed
   }
 
   /**
@@ -556,8 +877,17 @@ export class EditorView {
    * @param {string} language - Language identifier
    */
   setLanguage(language) {
+    // Cancel any pending background tokenization
+    this._cancelBackgroundTokenization();
+
+    // Clear cached states (they're for the old language)
+    this._lineStates.clear();
+
+    // Create new tokenizer for the language
     this._options.language = language;
     this._tokenizer = new Tokenizer(language);
+
+    // Re-render with new tokenizer
     this._render();
   }
 
@@ -586,8 +916,17 @@ export class EditorView {
   // ----------------------------------------
 
   dispose() {
+    // Cancel any pending background tokenization
+    this._cancelBackgroundTokenization();
+
+    // Clear cached states
+    this._lineStates.clear();
+
+    // Clear tokenizer
     this._tokenizer?.clearCache();
     this._tokenizer = null;
+
+    // Clear DOM
     this._container.innerHTML = '';
 
     // Clean up measurement element
