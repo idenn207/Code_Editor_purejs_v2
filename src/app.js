@@ -1,364 +1,359 @@
-import {
-  AutoCloseFeature,
-  AutocompleteFeature,
-  AutoIndentFeature,
-  BracketMatchFeature,
-  Editor,
-  IndentGuideFeature,
-  isEditContextSupported,
-  MultiCursorFeature,
-  SearchFeature,
-} from './index.js';
+/**
+ * @fileoverview Code Editor application entry point
+ * @module app
+ */
 
-// ============================================
-// Sample Code for Syntax Highlighting Demo
-// ============================================
+(function() {
+  'use strict';
 
-// JavaScript sample code
-const SAMPLE_CODE_JS = `// V2 Minimal Code Editor
-// Basic syntax highlighting with EditContext API
+  // Get classes from namespace
+  var Editor = CodeEditor.Editor;
+  var isEditContextSupported = CodeEditor.isEditContextSupported;
+  var AutoCloseFeature = CodeEditor.Features.AutoClose;
+  var AutocompleteFeature = CodeEditor.Features.Autocomplete;
+  var AutoIndentFeature = CodeEditor.Features.AutoIndent;
+  var BracketMatchFeature = CodeEditor.Features.BracketMatch;
+  var IndentGuideFeature = CodeEditor.Features.IndentGuide;
+  var MultiCursorFeature = CodeEditor.Features.MultiCursor;
+  var SearchFeature = CodeEditor.Features.Search;
 
-// Variables
-const message = "Hello World";
-let count = 42;
-var legacy = true;
+  // ============================================
+  // Sample Code for Syntax Highlighting Demo
+  // ============================================
 
-// Function
-function greet(name) {
-  console.log(\`Hello, \${name}!\`);
-  return name.toUpperCase();
-}
+  // JavaScript sample code
+  var SAMPLE_CODE_JS = '// V2 Minimal Code Editor\n' +
+    '// Basic syntax highlighting with EditContext API\n' +
+    '\n' +
+    '// Variables\n' +
+    'const message = "Hello World";\n' +
+    'let count = 42;\n' +
+    'var legacy = true;\n' +
+    '\n' +
+    '// Function\n' +
+    'function greet(name) {\n' +
+    '  console.log(`Hello, ${name}!`);\n' +
+    '  return name.toUpperCase();\n' +
+    '}\n' +
+    '\n' +
+    '// Arrow function\n' +
+    'const square = (x) => x * x;\n' +
+    '\n' +
+    '// Array\n' +
+    'const numbers = [1, 2, 3, 4, 5];\n' +
+    'const doubled = numbers.map(n => n * 2);\n' +
+    '\n' +
+    '// Object\n' +
+    'const user = {\n' +
+    '  name: "Alice",\n' +
+    '  age: 30\n' +
+    '};\n' +
+    '\n' +
+    '// Class\n' +
+    'class Calculator {\n' +
+    '  constructor(value) {\n' +
+    '    this.value = value;\n' +
+    '  }\n' +
+    '\n' +
+    '  add(n) {\n' +
+    '    this.value += n;\n' +
+    '    return this;\n' +
+    '  }\n' +
+    '}\n' +
+    '\n' +
+    '// Comments test\n' +
+    '/* Multi-line\n' +
+    '   comment block */\n' +
+    '\n' +
+    '// String variations\n' +
+    'const str1 = "double quotes";\n' +
+    'const str2 = \'single quotes\';\n' +
+    'const str3 = `template ${message}`;\n' +
+    '\n' +
+    '// Try editing the code above!\n';
 
-// Arrow function
-const square = (x) => x * x;
+  // HTML sample code
+  var SAMPLE_CODE_HTML = '<!DOCTYPE html>\n' +
+    '<html lang="en">\n' +
+    '<head>\n' +
+    '  <meta charset="UTF-8">\n' +
+    '  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+    '  <title>Sample HTML Page</title>\n' +
+    '  <link rel="stylesheet" href="styles.css">\n' +
+    '</head>\n' +
+    '<body>\n' +
+    '  <!-- Main content -->\n' +
+    '  <header class="site-header">\n' +
+    '    <nav id="main-nav">\n' +
+    '      <a href="/">Home</a>\n' +
+    '      <a href="/about">About</a>\n' +
+    '    </nav>\n' +
+    '  </header>\n' +
+    '\n' +
+    '  <main>\n' +
+    '    <h1>Welcome to the Editor</h1>\n' +
+    '    <p>This is a paragraph with <strong>bold</strong> text.</p>\n' +
+    '\n' +
+    '    <!-- Form example -->\n' +
+    '    <form action="/submit" method="post">\n' +
+    '      <input type="text" name="username" placeholder="Username" required>\n' +
+    '      <input type="email" name="email">\n' +
+    '      <button type="submit" disabled>Submit</button>\n' +
+    '    </form>\n' +
+    '\n' +
+    '    <!-- Void elements -->\n' +
+    '    <img src="image.png" alt="Sample image" />\n' +
+    '    <br>\n' +
+    '    <hr>\n' +
+    '\n' +
+    '    <!-- Entities -->\n' +
+    '    <p>Special chars: &amp; &lt; &gt; &nbsp; &#169; &#x00A9;</p>\n' +
+    '  </main>\n' +
+    '\n' +
+    '  <script src="app.js"></script>\n' +
+    '</body>\n' +
+    '</html>\n';
 
-// Array
-const numbers = [1, 2, 3, 4, 5];
-const doubled = numbers.map(n => n * 2);
+  // CSS sample code
+  var SAMPLE_CODE_CSS = '/* CSS Sample - Testing Grammar */\n' +
+    '@charset "UTF-8";\n' +
+    '@import url(\'https://fonts.googleapis.com/css?family=Roboto\');\n' +
+    '\n' +
+    '/* CSS Variables */\n' +
+    ':root {\n' +
+    '  --primary-color: #3498db;\n' +
+    '  --secondary-color: rgb(52, 73, 94);\n' +
+    '  --spacing: 1rem;\n' +
+    '  --font-size: 16px;\n' +
+    '}\n' +
+    '\n' +
+    '/* Element Selectors */\n' +
+    'body {\n' +
+    '  margin: 0;\n' +
+    '  padding: 0;\n' +
+    '  font-family: \'Roboto\', sans-serif;\n' +
+    '  font-size: var(--font-size);\n' +
+    '  line-height: 1.5;\n' +
+    '  background-color: #f5f5f5;\n' +
+    '}\n' +
+    '\n' +
+    '/* Class and ID Selectors */\n' +
+    '.container {\n' +
+    '  max-width: 1200px;\n' +
+    '  margin: 0 auto;\n' +
+    '  padding: var(--spacing);\n' +
+    '}\n' +
+    '\n' +
+    '#main-header {\n' +
+    '  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n' +
+    '  color: white;\n' +
+    '}\n' +
+    '\n' +
+    '/* Pseudo-classes and Pseudo-elements */\n' +
+    'a:hover,\n' +
+    'a:focus {\n' +
+    '  color: var(--primary-color);\n' +
+    '  text-decoration: underline;\n' +
+    '}\n' +
+    '\n' +
+    '.button::before {\n' +
+    '  content: "-> ";\n' +
+    '}\n' +
+    '\n' +
+    '.list-item:nth-child(odd) {\n' +
+    '  background-color: rgba(0, 0, 0, 0.05);\n' +
+    '}\n' +
+    '\n' +
+    '/* Attribute Selectors */\n' +
+    'input[type="text"],\n' +
+    'input[type="email"] {\n' +
+    '  border: 1px solid #ccc;\n' +
+    '  border-radius: 4px;\n' +
+    '  padding: 8px 12px;\n' +
+    '}\n' +
+    '\n' +
+    '[data-theme="dark"] {\n' +
+    '  --primary-color: #5dade2;\n' +
+    '}\n' +
+    '\n' +
+    '/* Media Queries */\n' +
+    '@media screen and (min-width: 768px) {\n' +
+    '  .container {\n' +
+    '    padding: calc(var(--spacing) * 2);\n' +
+    '  }\n' +
+    '\n' +
+    '  .grid {\n' +
+    '    display: grid;\n' +
+    '    grid-template-columns: repeat(3, 1fr);\n' +
+    '    gap: 20px;\n' +
+    '  }\n' +
+    '}\n' +
+    '\n' +
+    '/* Keyframes Animation */\n' +
+    '@keyframes fadeIn {\n' +
+    '  0% {\n' +
+    '    opacity: 0;\n' +
+    '    transform: translateY(-10px);\n' +
+    '  }\n' +
+    '  100% {\n' +
+    '    opacity: 1;\n' +
+    '    transform: translateY(0);\n' +
+    '  }\n' +
+    '}\n' +
+    '\n' +
+    '.animated {\n' +
+    '  animation: fadeIn 0.3s ease-out forwards;\n' +
+    '}\n' +
+    '\n' +
+    '/* Complex Selectors */\n' +
+    'nav > ul > li.active > a {\n' +
+    '  font-weight: bold !important;\n' +
+    '}\n' +
+    '\n' +
+    '/* Flexbox */\n' +
+    '.flex-container {\n' +
+    '  display: flex;\n' +
+    '  justify-content: space-between;\n' +
+    '  align-items: center;\n' +
+    '  flex-wrap: wrap;\n' +
+    '}\n';
 
-// Object
-const user = {
-  name: "Alice",
-  age: 30
-};
+  // Default sample code (JavaScript)
+  var SAMPLE_CODE = SAMPLE_CODE_JS;
 
-// Class
-class Calculator {
-  constructor(value) {
-    this.value = value;
-  }
+  // Initialize editor
+  var container = document.getElementById('editor-container');
+  var editor = new Editor(container, {
+    value: SAMPLE_CODE,
+    language: 'javascript',
+    fontSize: 14,
+    lineHeight: 22,
+  });
 
-  add(n) {
-    this.value += n;
-    return this;
-  }
-}
+  // Enable Autocomplete feature (must be before AutoIndent for Enter key priority)
+  var autocomplete = new AutocompleteFeature(editor);
 
-// Comments test
-/* Multi-line
-   comment block */
+  // Enable Auto-Close feature
+  var autoClose = new AutoCloseFeature(editor);
 
-// String variations
-const str1 = "double quotes";
-const str2 = 'single quotes';
-const str3 = \`template \${message}\`;
+  // Enable Auto-Indent feature
+  var autoIndent = new AutoIndentFeature(editor, {
+    tabSize: 2,
+    useSpaces: true,
+  });
 
-// Try editing the code above!
-`;
+  // Enable Bracket Match feature
+  var bracketMatch = new BracketMatchFeature(editor);
 
-// HTML sample code
-const SAMPLE_CODE_HTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sample HTML Page</title>
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-  <!-- Main content -->
-  <header class="site-header">
-    <nav id="main-nav">
-      <a href="/">Home</a>
-      <a href="/about">About</a>
-    </nav>
-  </header>
+  // Enable Indent Guide feature
+  var indentGuide = new IndentGuideFeature(editor, {
+    tabSize: 2,
+  });
 
-  <main>
-    <h1>Welcome to the Editor</h1>
-    <p>This is a paragraph with <strong>bold</strong> text.</p>
+  // Enable Search feature
+  var search = new SearchFeature(editor);
 
-    <!-- Form example -->
-    <form action="/submit" method="post">
-      <input type="text" name="username" placeholder="Username" required>
-      <input type="email" name="email">
-      <button type="submit" disabled>Submit</button>
-    </form>
+  // Enable Multi-Cursor feature
+  var multiCursor = new MultiCursorFeature(editor);
 
-    <!-- Void elements -->
-    <img src="image.png" alt="Sample image" />
-    <br>
-    <hr>
+  // UI Elements
+  var inputModeEl = document.getElementById('input-mode');
+  var ecSupportEl = document.getElementById('ec-support');
+  var cursorPosEl = document.getElementById('cursor-pos');
+  var outputEl = document.getElementById('output');
 
-    <!-- Entities -->
-    <p>Special chars: &amp; &lt; &gt; &nbsp; &#169; &#x00A9;</p>
-  </main>
+  // Show input mode
+  inputModeEl.textContent = editor.inputMode;
+  inputModeEl.className = 'badge ' + (editor.inputMode === 'editcontext' ? 'badge-success' : 'badge-warning');
 
-  <script src="app.js"></script>
-</body>
-</html>
-`;
+  // Show EditContext support
+  var supported = isEditContextSupported();
+  ecSupportEl.textContent = supported ? 'Yes' : 'No';
+  ecSupportEl.className = 'badge ' + (supported ? 'badge-success' : 'badge-warning');
 
-// CSS sample code
-const SAMPLE_CODE_CSS = `/* CSS Sample - Testing Grammar */
-@charset "UTF-8";
-@import url('https://fonts.googleapis.com/css?family=Roboto');
+  // Update cursor position
+  editor.on('selectionChange', function() {
+    var pos = editor.getCursorPosition();
+    cursorPosEl.textContent = (pos.line + 1) + ':' + (pos.column + 1);
+  });
 
-/* CSS Variables */
-:root {
-  --primary-color: #3498db;
-  --secondary-color: rgb(52, 73, 94);
-  --spacing: 1rem;
-  --font-size: 16px;
-}
+  // Button handlers
+  document.getElementById('btn-get-value').onclick = function() {
+    outputEl.textContent = editor.getValue();
+  };
 
-/* Element Selectors */
-body {
-  margin: 0;
-  padding: 0;
-  font-family: 'Roboto', sans-serif;
-  font-size: var(--font-size);
-  line-height: 1.5;
-  background-color: #f5f5f5;
-}
+  document.getElementById('btn-set-value').onclick = function() {
+    editor.setValue(SAMPLE_CODE);
+    outputEl.textContent = 'Sample code loaded!';
+  };
 
-/* Class and ID Selectors */
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: var(--spacing);
-}
+  document.getElementById('btn-undo').onclick = function() {
+    editor.undo();
+  };
 
-#main-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
+  document.getElementById('btn-redo').onclick = function() {
+    editor.redo();
+  };
 
-/* Pseudo-classes and Pseudo-elements */
-a:hover,
-a:focus {
-  color: var(--primary-color);
-  text-decoration: underline;
-}
+  var isDark = true;
+  document.getElementById('btn-toggle-theme').onclick = function() {
+    isDark = !isDark;
+    container.classList.toggle('ec-theme-light', !isDark);
+  };
 
-.button::before {
-  content: "→ ";
-}
+  // Focus editor
+  editor.focus();
 
-.list-item:nth-child(odd) {
-  background-color: rgba(0, 0, 0, 0.05);
-}
+  // Expose for debugging
+  window.editor = editor;
+  window.autoClose = autoClose;
+  window.autocomplete = autocomplete;
+  window.autoIndent = autoIndent;
+  window.bracketMatch = bracketMatch;
+  window.indentGuide = indentGuide;
+  window.multiCursor = multiCursor;
+  window.search = search;
 
-/* Attribute Selectors */
-input[type="text"],
-input[type="email"] {
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  padding: 8px 12px;
-}
+  // Expose sample code for testing different languages
+  window.SAMPLE_CODE_JS = SAMPLE_CODE_JS;
+  window.SAMPLE_CODE_HTML = SAMPLE_CODE_HTML;
+  window.SAMPLE_CODE_CSS = SAMPLE_CODE_CSS;
 
-[data-theme="dark"] {
-  --primary-color: #5dade2;
-}
+  // ============================================
+  // Testing HTML/CSS Grammar - Instructions
+  // ============================================
+  //
+  // To test different language grammars in the browser console:
+  //
+  // 1. Test HTML highlighting:
+  //    editor.setLanguage('html');
+  //    editor.setValue(SAMPLE_CODE_HTML);
+  //
+  // 2. Test CSS highlighting:
+  //    editor.setLanguage('css');
+  //    editor.setValue(SAMPLE_CODE_CSS);
+  //
+  // 3. Switch back to JavaScript:
+  //    editor.setLanguage('javascript');
+  //    editor.setValue(SAMPLE_CODE_JS);
+  //
+  // ============================================
 
-/* Media Queries */
-@media screen and (min-width: 768px) {
-  .container {
-    padding: calc(var(--spacing) * 2);
-  }
+  console.log('Editor instance available as window.editor');
+  console.log('AutoCloseFeature available as window.autoClose');
+  console.log('AutocompleteFeature available as window.autocomplete');
+  console.log('AutoIndentFeature available as window.autoIndent');
+  console.log('BracketMatchFeature available as window.bracketMatch');
+  console.log('IndentGuideFeature available as window.indentGuide');
+  console.log('MultiCursorFeature available as window.multiCursor');
+  console.log('SearchFeature available as window.search');
+  console.log('');
+  console.log('Search: Ctrl+F (find), Ctrl+H (replace)');
+  console.log('Autocomplete: Ctrl+Space (trigger), Arrow keys (navigate), Enter/Tab (select)');
+  console.log('Multi-Cursor: Alt+Click (add cursor), Ctrl+Alt+Up/Down (add cursor above/below), Ctrl+D (select next), Escape (collapse)');
+  console.log('');
+  console.log('Sample code available: SAMPLE_CODE_JS, SAMPLE_CODE_HTML, SAMPLE_CODE_CSS');
+  console.log('To test HTML: editor.setLanguage("html"); editor.setValue(SAMPLE_CODE_HTML);');
+  console.log('To test CSS: editor.setLanguage("css"); editor.setValue(SAMPLE_CODE_CSS);');
 
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
-  }
-}
-
-/* Keyframes Animation */
-@keyframes fadeIn {
-  0% {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animated {
-  animation: fadeIn 0.3s ease-out forwards;
-}
-
-/* Complex Selectors */
-nav > ul > li.active > a {
-  font-weight: bold !important;
-}
-
-/* Flexbox */
-.flex-container {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-}
-`;
-
-// Default sample code (JavaScript)
-const SAMPLE_CODE = SAMPLE_CODE_JS;
-
-// Initialize editor
-const container = document.getElementById('editor-container');
-const editor = new Editor(container, {
-  value: SAMPLE_CODE,
-  language: 'javascript',
-  fontSize: 14,
-  lineHeight: 22,
-});
-
-// Enable Autocomplete feature (must be before AutoIndent for Enter key priority)
-const autocomplete = new AutocompleteFeature(editor);
-
-// Enable Auto-Close feature
-const autoClose = new AutoCloseFeature(editor);
-
-// Enable Auto-Indent feature
-const autoIndent = new AutoIndentFeature(editor, {
-  tabSize: 2,
-  useSpaces: true,
-});
-
-// Enable Bracket Match feature
-const bracketMatch = new BracketMatchFeature(editor);
-
-// Enable Indent Guide feature
-const indentGuide = new IndentGuideFeature(editor, {
-  tabSize: 2,
-});
-
-// Enable Search feature
-const search = new SearchFeature(editor);
-
-// Enable Multi-Cursor feature
-const multiCursor = new MultiCursorFeature(editor);
-
-// UI Elements
-const inputModeEl = document.getElementById('input-mode');
-const ecSupportEl = document.getElementById('ec-support');
-const cursorPosEl = document.getElementById('cursor-pos');
-const outputEl = document.getElementById('output');
-
-// Show input mode
-inputModeEl.textContent = editor.inputMode;
-inputModeEl.className = `badge ${editor.inputMode === 'editcontext' ? 'badge-success' : 'badge-warning'}`;
-
-// Show EditContext support
-const supported = isEditContextSupported();
-ecSupportEl.textContent = supported ? 'Yes' : 'No';
-ecSupportEl.className = `badge ${supported ? 'badge-success' : 'badge-warning'}`;
-
-// Update cursor position
-editor.on('selectionChange', () => {
-  const pos = editor.getCursorPosition();
-  cursorPosEl.textContent = `${pos.line + 1}:${pos.column + 1}`;
-});
-
-// Button handlers
-document.getElementById('btn-get-value').onclick = () => {
-  outputEl.textContent = editor.getValue();
-};
-
-document.getElementById('btn-set-value').onclick = () => {
-  editor.setValue(SAMPLE_CODE);
-  outputEl.textContent = 'Sample code loaded!';
-};
-
-document.getElementById('btn-undo').onclick = () => {
-  editor.undo();
-};
-
-document.getElementById('btn-redo').onclick = () => {
-  editor.redo();
-};
-
-let isDark = true;
-document.getElementById('btn-toggle-theme').onclick = () => {
-  isDark = !isDark;
-  container.classList.toggle('ec-theme-light', !isDark);
-};
-
-// Focus editor
-editor.focus();
-
-// Expose for debugging
-window.editor = editor;
-window.autoClose = autoClose;
-window.autocomplete = autocomplete;
-window.autoIndent = autoIndent;
-window.bracketMatch = bracketMatch;
-window.indentGuide = indentGuide;
-window.multiCursor = multiCursor;
-window.search = search;
-
-// Expose sample code for testing different languages
-window.SAMPLE_CODE_JS = SAMPLE_CODE_JS;
-window.SAMPLE_CODE_HTML = SAMPLE_CODE_HTML;
-window.SAMPLE_CODE_CSS = SAMPLE_CODE_CSS;
-
-// ============================================
-// Testing HTML/CSS Grammar - Instructions
-// ============================================
-//
-// To test different language grammars in the browser console:
-//
-// 1. Test HTML highlighting:
-//    editor.setLanguage('html');
-//    editor.setValue(SAMPLE_CODE_HTML);
-//
-// 2. Test CSS highlighting:
-//    editor.setLanguage('css');
-//    editor.setValue(SAMPLE_CODE_CSS);
-//
-// 3. Switch back to JavaScript:
-//    editor.setLanguage('javascript');
-//    editor.setValue(SAMPLE_CODE_JS);
-//
-// Note: If setLanguage() is not implemented yet, you can create
-// a new editor instance with a different language:
-//
-//    const container = document.getElementById('editor-container');
-//    container.innerHTML = '';
-//    const htmlEditor = new Editor(container, {
-//      value: SAMPLE_CODE_HTML,
-//      language: 'html'
-//    });
-//
-// ============================================
-
-console.log('Editor instance available as window.editor');
-console.log('AutoCloseFeature available as window.autoClose');
-console.log('AutocompleteFeature available as window.autocomplete');
-console.log('AutoIndentFeature available as window.autoIndent');
-console.log('BracketMatchFeature available as window.bracketMatch');
-console.log('IndentGuideFeature available as window.indentGuide');
-console.log('MultiCursorFeature available as window.multiCursor');
-console.log('SearchFeature available as window.search');
-console.log('');
-console.log('Search: Ctrl+F (find), Ctrl+H (replace)');
-console.log('Autocomplete: Ctrl+Space (trigger), Arrow keys (navigate), Enter/Tab (select)');
-console.log('Multi-Cursor: Alt+Click (add cursor), Ctrl+Alt+Up/Down (add cursor above/below), Ctrl+D (select next), Escape (collapse)');
-console.log('');
-console.log('Sample code available: SAMPLE_CODE_JS, SAMPLE_CODE_HTML, SAMPLE_CODE_CSS');
-console.log('To test HTML: editor.setLanguage("html"); editor.setValue(SAMPLE_CODE_HTML);');
-console.log('To test CSS: editor.setLanguage("css"); editor.setValue(SAMPLE_CODE_CSS);');
-
+})();

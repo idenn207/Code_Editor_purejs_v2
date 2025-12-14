@@ -1,343 +1,359 @@
 /**
  * @fileoverview JavaScript grammar definition for Monarch-style tokenizer
- * @module tokenizer/grammars/javascript
  */
 
-// ============================================
-// Token Types
-// ============================================
+(function(CodeEditor) {
+  'use strict';
 
-export const TokenType = Object.freeze({
-  KEYWORD: 'keyword',                    // Blue keywords (declaration/modifier)
-  KEYWORD_CONTROL: 'keyword.control',    // Purple keywords (control flow)
-  KEYWORD_LITERAL: 'keyword.literal',
-  STRING: 'string',
-  STRING_TEMPLATE: 'string.template',
-  STRING_ESCAPE: 'string.escape',
-  STRING_INVALID: 'string.invalid',
-  NUMBER: 'number',
-  NUMBER_FLOAT: 'number.float',
-  NUMBER_HEX: 'number.hex',
-  COMMENT: 'comment',
-  OPERATOR: 'operator',
-  DELIMITER: 'delimiter',
-  DELIMITER_BRACKET: 'delimiter.bracket',
-  IDENTIFIER: 'identifier',
-  FUNCTION: 'function',
-  CLASS: 'class',
-  WHITESPACE: 'whitespace',
-  PLAIN: 'plain',
-});
+  CodeEditor.Grammars = CodeEditor.Grammars || {};
 
-// ============================================
-// Grammar Definition
-// ============================================
+  // ============================================
+  // Token Types
+  // ============================================
 
-export const JavaScriptGrammar = {
-  name: 'javascript',
+  var TokenType = Object.freeze({
+    KEYWORD: 'keyword',                    // Blue keywords (declaration/modifier)
+    KEYWORD_CONTROL: 'keyword.control',    // Purple keywords (control flow)
+    KEYWORD_LITERAL: 'keyword.literal',
+    STRING: 'string',
+    STRING_TEMPLATE: 'string.template',
+    STRING_ESCAPE: 'string.escape',
+    STRING_INVALID: 'string.invalid',
+    NUMBER: 'number',
+    NUMBER_FLOAT: 'number.float',
+    NUMBER_HEX: 'number.hex',
+    COMMENT: 'comment',
+    OPERATOR: 'operator',
+    DELIMITER: 'delimiter',
+    DELIMITER_BRACKET: 'delimiter.bracket',
+    IDENTIFIER: 'identifier',
+    FUNCTION: 'function',
+    CLASS: 'class',
+    WHITESPACE: 'whitespace',
+    PLAIN: 'plain',
+  });
 
-  // ----------------------------------------
-  // Keyword Lists
-  // ----------------------------------------
+  // ============================================
+  // Grammar Definition
+  // ============================================
 
-  // Blue keywords - declarations, modifiers, operators
-  keywords: [
-    'class',
-    'const',
-    'delete',
-    'extends',
-    'function',
-    'in',
-    'instanceof',
-    'let',
-    'new',
-    'static',
-    'super',
-    'this',
-    'typeof',
-    'var',
-    'void',
-    'async',
-    'implements',
-    'interface',
-    'package',
-    'private',
-    'protected',
-    'public',
-    'enum',
-    'get',
-    'set',
-    'of',
-  ],
+  var JavaScriptGrammar = {
+    name: 'javascript',
 
-  // Purple keywords - control flow
-  controlKeywords: [
-    'break',
-    'case',
-    'catch',
-    'continue',
-    'debugger',
-    'default',
-    'do',
-    'else',
-    'export',
-    'finally',
-    'for',
-    'if',
-    'import',
-    'return',
-    'switch',
-    'throw',
-    'try',
-    'while',
-    'with',
-    'yield',
-    'await',
-  ],
+    // ----------------------------------------
+    // Keyword Lists
+    // ----------------------------------------
 
-  typeKeywords: ['true', 'false', 'null', 'undefined', 'NaN', 'Infinity'],
+    // Blue keywords - declarations, modifiers, operators
+    keywords: [
+      'class',
+      'const',
+      'delete',
+      'extends',
+      'function',
+      'in',
+      'instanceof',
+      'let',
+      'new',
+      'static',
+      'super',
+      'this',
+      'typeof',
+      'var',
+      'void',
+      'async',
+      'implements',
+      'interface',
+      'package',
+      'private',
+      'protected',
+      'public',
+      'enum',
+      'get',
+      'set',
+      'of',
+    ],
 
-  operators: [
-    '<=',
-    '>=',
-    '==',
-    '!=',
-    '===',
-    '!==',
-    '=>',
-    '+',
-    '-',
-    '**',
-    '*',
-    '/',
-    '%',
-    '++',
-    '--',
-    '<<',
-    '>>',
-    '>>>',
-    '&',
-    '|',
-    '^',
-    '!',
-    '~',
-    '&&',
-    '||',
-    '??',
-    '?',
-    ':',
-    '=',
-    '+=',
-    '-=',
-    '*=',
-    '/=',
-    '%=',
-    '**=',
-    '<<=',
-    '>>=',
-    '>>>=',
-    '&=',
-    '|=',
-    '^=',
-    '&&=',
-    '||=',
-    '??=',
-    '?.',
-    '...',
-  ],
+    // Purple keywords - control flow
+    controlKeywords: [
+      'break',
+      'case',
+      'catch',
+      'continue',
+      'debugger',
+      'default',
+      'do',
+      'else',
+      'export',
+      'finally',
+      'for',
+      'if',
+      'import',
+      'return',
+      'switch',
+      'throw',
+      'try',
+      'while',
+      'with',
+      'yield',
+      'await',
+    ],
 
-  // ----------------------------------------
-  // Regular Expression Patterns
-  // ----------------------------------------
+    typeKeywords: ['true', 'false', 'null', 'undefined', 'NaN', 'Infinity'],
 
-  symbols: /[=><!~?:&|+\-*\/\^%]+/,
-  escapes: /\\(?:[abfnrtv\\"']|x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|u\{[0-9A-Fa-f]+\})/,
-  digits: /\d+(_+\d+)*/,
-  octaldigits: /[0-7]+(_+[0-7]+)*/,
-  binarydigits: /[0-1]+(_+[0-1]+)*/,
-  hexdigits: /[[0-9a-fA-F]+(_+[0-9a-fA-F]+)*/,
+    operators: [
+      '<=',
+      '>=',
+      '==',
+      '!=',
+      '===',
+      '!==',
+      '=>',
+      '+',
+      '-',
+      '**',
+      '*',
+      '/',
+      '%',
+      '++',
+      '--',
+      '<<',
+      '>>',
+      '>>>',
+      '&',
+      '|',
+      '^',
+      '!',
+      '~',
+      '&&',
+      '||',
+      '??',
+      '?',
+      ':',
+      '=',
+      '+=',
+      '-=',
+      '*=',
+      '/=',
+      '%=',
+      '**=',
+      '<<=',
+      '>>=',
+      '>>>=',
+      '&=',
+      '|=',
+      '^=',
+      '&&=',
+      '||=',
+      '??=',
+      '?.',
+      '...',
+    ],
 
-  // ----------------------------------------
-  // Tokenizer Rules (State Machine)
-  // ----------------------------------------
+    // ----------------------------------------
+    // Regular Expression Patterns
+    // ----------------------------------------
 
-  tokenizer: {
-    // ----------------
-    // Root State
-    // ----------------
-    root: [
-      // Whitespace
-      [/[ \t\r\n]+/, TokenType.WHITESPACE],
+    symbols: /[=><!~?:&|+\-*\/\^%]+/,
+    escapes: /\\(?:[abfnrtv\\"']|x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|u\{[0-9A-Fa-f]+\})/,
+    digits: /\d+(_+\d+)*/,
+    octaldigits: /[0-7]+(_+[0-7]+)*/,
+    binarydigits: /[0-1]+(_+[0-1]+)*/,
+    hexdigits: /[[0-9a-fA-F]+(_+[0-9a-fA-F]+)*/,
 
-      // Comments
-      [/\/\/.*$/, TokenType.COMMENT],
-      [/\/\*/, TokenType.COMMENT, '@comment'],
+    // ----------------------------------------
+    // Tokenizer Rules (State Machine)
+    // ----------------------------------------
 
-      // JSDoc
-      [/\/\*\*(?!\/)/, TokenType.COMMENT, '@jsdoc'],
+    tokenizer: {
+      // ----------------
+      // Root State
+      // ----------------
+      root: [
+        // Whitespace
+        [/[ \t\r\n]+/, TokenType.WHITESPACE],
 
-      // Regular expression (simplified detection)
-      [/\/(?=([^\\\/]|\\.)+\/[gimsuy]*)/, TokenType.STRING, '@regexp'],
+        // Comments
+        [/\/\/.*$/, TokenType.COMMENT],
+        [/\/\*/, TokenType.COMMENT, '@comment'],
 
-      // Numbers
-      [/0[xX]@hexdigits/, TokenType.NUMBER_HEX],
-      [/0[oO]@octaldigits/, TokenType.NUMBER],
-      [/0[bB]@binarydigits/, TokenType.NUMBER],
-      [/@digits[eE][\-+]?@digits/, TokenType.NUMBER_FLOAT],
-      [/@digits\.@digits([eE][\-+]?@digits)?/, TokenType.NUMBER_FLOAT],
-      [/@digits/, TokenType.NUMBER],
+        // JSDoc
+        [/\/\*\*(?!\/)/, TokenType.COMMENT, '@jsdoc'],
 
-      // Strings
-      [/"([^"\\]|\\.)*$/, TokenType.STRING_INVALID], // non-terminated
-      [/'([^'\\]|\\.)*$/, TokenType.STRING_INVALID], // non-terminated
-      [/"/, TokenType.STRING, '@string_double'],
-      [/'/, TokenType.STRING, '@string_single'],
-      [/`/, TokenType.STRING_TEMPLATE, '@string_template'],
+        // Regular expression (simplified detection)
+        [/\/(?=([^\\\/]|\\.)+\/[gimsuy]*)/, TokenType.STRING, '@regexp'],
 
-      // Identifiers and keywords
-      [
-        /[a-zA-Z_$][\w$]*/,
-        {
-          cases: {
-            '@keywords': TokenType.KEYWORD,
-            '@controlKeywords': TokenType.KEYWORD_CONTROL,
-            '@typeKeywords': TokenType.KEYWORD_LITERAL,
-            '@default': TokenType.IDENTIFIER,
+        // Numbers
+        [/0[xX]@hexdigits/, TokenType.NUMBER_HEX],
+        [/0[oO]@octaldigits/, TokenType.NUMBER],
+        [/0[bB]@binarydigits/, TokenType.NUMBER],
+        [/@digits[eE][\-+]?@digits/, TokenType.NUMBER_FLOAT],
+        [/@digits\.@digits([eE][\-+]?@digits)?/, TokenType.NUMBER_FLOAT],
+        [/@digits/, TokenType.NUMBER],
+
+        // Strings
+        [/"([^"\\]|\\.)*$/, TokenType.STRING_INVALID], // non-terminated
+        [/'([^'\\]|\\.)*$/, TokenType.STRING_INVALID], // non-terminated
+        [/"/, TokenType.STRING, '@string_double'],
+        [/'/, TokenType.STRING, '@string_single'],
+        [/`/, TokenType.STRING_TEMPLATE, '@string_template'],
+
+        // Identifiers and keywords
+        [
+          /[a-zA-Z_$][\w$]*/,
+          {
+            cases: {
+              '@keywords': TokenType.KEYWORD,
+              '@controlKeywords': TokenType.KEYWORD_CONTROL,
+              '@typeKeywords': TokenType.KEYWORD_LITERAL,
+              '@default': TokenType.IDENTIFIER,
+            },
           },
-        },
+        ],
+
+        // Operators
+        [
+          /@symbols/,
+          {
+            cases: {
+              '@operators': TokenType.OPERATOR,
+              '@default': TokenType.PLAIN,
+            },
+          },
+        ],
+
+        // Delimiters
+        [/[{}()\[\]]/, TokenType.DELIMITER_BRACKET],
+        [/[<>](?!@symbols)/, TokenType.DELIMITER_BRACKET],
+        [/[;,.]/, TokenType.DELIMITER],
+
+        // Arrow function (additional highlight)
+        [/=>/, TokenType.OPERATOR],
       ],
 
-      // Operators
-      [
-        /@symbols/,
-        {
-          cases: {
-            '@operators': TokenType.OPERATOR,
-            '@default': TokenType.PLAIN,
-          },
-        },
+      // ----------------
+      // Multi-line Comment State
+      // ----------------
+      comment: [
+        [/[^\/*]+/, TokenType.COMMENT],
+        [/\*\//, TokenType.COMMENT, '@pop'],
+        [/[\/*]/, TokenType.COMMENT],
       ],
 
-      // Delimiters
-      [/[{}()\[\]]/, TokenType.DELIMITER_BRACKET],
-      [/[<>](?!@symbols)/, TokenType.DELIMITER_BRACKET],
-      [/[;,.]/, TokenType.DELIMITER],
+      // ----------------
+      // JSDoc Comment State
+      // ----------------
+      jsdoc: [
+        [/[^\/*]+/, TokenType.COMMENT],
+        [/\*\//, TokenType.COMMENT, '@pop'],
+        [/[\/*]/, TokenType.COMMENT],
+        [/@\w+/, TokenType.KEYWORD], // JSDoc tags
+      ],
 
-      // Arrow function (additional highlight)
-      [/=>/, TokenType.OPERATOR],
-    ],
+      // ----------------
+      // Double-quoted String State
+      // ----------------
+      string_double: [
+        [/[^\\"]+/, TokenType.STRING],
+        [/@escapes/, TokenType.STRING_ESCAPE],
+        [/\\./, TokenType.STRING_INVALID],
+        [/"/, TokenType.STRING, '@pop'],
+      ],
 
-    // ----------------
-    // Multi-line Comment State
-    // ----------------
-    comment: [
-      [/[^\/*]+/, TokenType.COMMENT],
-      [/\*\//, TokenType.COMMENT, '@pop'],
-      [/[\/*]/, TokenType.COMMENT],
-    ],
+      // ----------------
+      // Single-quoted String State
+      // ----------------
+      string_single: [
+        [/[^\\']+/, TokenType.STRING],
+        [/@escapes/, TokenType.STRING_ESCAPE],
+        [/\\./, TokenType.STRING_INVALID],
+        [/'/, TokenType.STRING, '@pop'],
+      ],
 
-    // ----------------
-    // JSDoc Comment State
-    // ----------------
-    jsdoc: [
-      [/[^\/*]+/, TokenType.COMMENT],
-      [/\*\//, TokenType.COMMENT, '@pop'],
-      [/[\/*]/, TokenType.COMMENT],
-      [/@\w+/, TokenType.KEYWORD], // JSDoc tags
-    ],
+      // ----------------
+      // Template String State
+      // ----------------
+      string_template: [
+        [/\$\{/, TokenType.DELIMITER_BRACKET, '@template_expression'],
+        [/[^`\\$]+/, TokenType.STRING_TEMPLATE],
+        [/@escapes/, TokenType.STRING_ESCAPE],
+        [/\\./, TokenType.STRING_INVALID],
+        [/`/, TokenType.STRING_TEMPLATE, '@pop'],
+      ],
 
-    // ----------------
-    // Double-quoted String State
-    // ----------------
-    string_double: [
-      [/[^\\"]+/, TokenType.STRING],
-      [/@escapes/, TokenType.STRING_ESCAPE],
-      [/\\./, TokenType.STRING_INVALID],
-      [/"/, TokenType.STRING, '@pop'],
-    ],
+      // ----------------
+      // Template Expression State (${...})
+      // ----------------
+      template_expression: [[/\}/, TokenType.DELIMITER_BRACKET, '@pop'], { include: '@root' }],
 
-    // ----------------
-    // Single-quoted String State
-    // ----------------
-    string_single: [
-      [/[^\\']+/, TokenType.STRING],
-      [/@escapes/, TokenType.STRING_ESCAPE],
-      [/\\./, TokenType.STRING_INVALID],
-      [/'/, TokenType.STRING, '@pop'],
-    ],
+      // ----------------
+      // RegExp State (simplified)
+      // ----------------
+      regexp: [
+        [/[^\\\/\[]+/, TokenType.STRING],
+        [/\\./, TokenType.STRING_ESCAPE],
+        [/\[/, TokenType.STRING, '@regexp_class'],
+        [/\/[gimsuy]*/, TokenType.STRING, '@pop'],
+      ],
 
-    // ----------------
-    // Template String State
-    // ----------------
-    string_template: [
-      [/\$\{/, TokenType.DELIMITER_BRACKET, '@template_expression'],
-      [/[^`\\$]+/, TokenType.STRING_TEMPLATE],
-      [/@escapes/, TokenType.STRING_ESCAPE],
-      [/\\./, TokenType.STRING_INVALID],
-      [/`/, TokenType.STRING_TEMPLATE, '@pop'],
-    ],
+      regexp_class: [
+        [/[^\]\\]+/, TokenType.STRING],
+        [/\\./, TokenType.STRING_ESCAPE],
+        [/\]/, TokenType.STRING, '@pop'],
+      ],
+    },
+  };
 
-    // ----------------
-    // Template Expression State (${...})
-    // ----------------
-    template_expression: [[/\}/, TokenType.DELIMITER_BRACKET, '@pop'], { include: '@root' }],
+  // ============================================
+  // Helper: Detect function calls for highlighting
+  // ============================================
 
-    // ----------------
-    // RegExp State (simplified)
-    // ----------------
-    regexp: [
-      [/[^\\\/\[]+/, TokenType.STRING],
-      [/\\./, TokenType.STRING_ESCAPE],
-      [/\[/, TokenType.STRING, '@regexp_class'],
-      [/\/[gimsuy]*/, TokenType.STRING, '@pop'],
-    ],
+  /**
+   * Post-process tokens to identify function calls
+   * @param {Array} tokens - Array of tokens
+   * @returns {Array} - Tokens with function calls identified
+   */
+  function identifyFunctionCalls(tokens) {
+    var result = [];
 
-    regexp_class: [
-      [/[^\]\\]+/, TokenType.STRING],
-      [/\\./, TokenType.STRING_ESCAPE],
-      [/\]/, TokenType.STRING, '@pop'],
-    ],
-  },
-};
+    for (var i = 0; i < tokens.length; i++) {
+      var token = tokens[i];
 
-// ============================================
-// Helper: Detect function calls for highlighting
-// ============================================
+      // Check if identifier is followed by (
+      if (token.type === TokenType.IDENTIFIER) {
+        // Look ahead for opening parenthesis
+        var j = i + 1;
+        while (j < tokens.length && tokens[j].type === TokenType.WHITESPACE) {
+          j++;
+        }
 
-/**
- * Post-process tokens to identify function calls
- * @param {Array} tokens - Array of tokens
- * @returns {Array} - Tokens with function calls identified
- */
-export function identifyFunctionCalls(tokens) {
-  const result = [];
+        if (j < tokens.length && tokens[j].type === TokenType.DELIMITER_BRACKET && tokens[j].value === '(') {
+          result.push({ type: TokenType.FUNCTION, value: token.value, start: token.start, end: token.end });
+          continue;
+        }
 
-  for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i];
-    const nextToken = tokens[i + 1];
-
-    // Check if identifier is followed by (
-    if (token.type === TokenType.IDENTIFIER) {
-      // Look ahead for opening parenthesis
-      let j = i + 1;
-      while (j < tokens.length && tokens[j].type === TokenType.WHITESPACE) {
-        j++;
+        // Check for class-like naming (PascalCase)
+        if (/^[A-Z][a-zA-Z0-9]*$/.test(token.value)) {
+          result.push({ type: TokenType.CLASS, value: token.value, start: token.start, end: token.end });
+          continue;
+        }
       }
 
-      if (j < tokens.length && tokens[j].type === TokenType.DELIMITER_BRACKET && tokens[j].value === '(') {
-        result.push({ ...token, type: TokenType.FUNCTION });
-        continue;
-      }
-
-      // Check for class-like naming (PascalCase)
-      if (/^[A-Z][a-zA-Z0-9]*$/.test(token.value)) {
-        result.push({ ...token, type: TokenType.CLASS });
-        continue;
-      }
+      result.push(token);
     }
 
-    result.push(token);
+    return result;
   }
 
-  return result;
-}
+  // ============================================
+  // Export to Namespace
+  // ============================================
+
+  CodeEditor.Grammars.JavaScript = JavaScriptGrammar;
+  CodeEditor.Grammars.JavaScriptTokenType = TokenType;
+  CodeEditor.Grammars.identifyFunctionCalls = identifyFunctionCalls;
+
+  // Also export TokenType at top level for backward compatibility
+  CodeEditor.TokenType = TokenType;
+
+})(window.CodeEditor = window.CodeEditor || {});

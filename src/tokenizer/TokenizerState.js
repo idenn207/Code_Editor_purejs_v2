@@ -1,28 +1,43 @@
-// ============================================
-// Tokenizer State
-// ============================================
-
 /**
- * Represents tokenizer state for incremental tokenization
+ * @fileoverview Tokenizer state for incremental tokenization
  */
-export class TokenizerState {
-  constructor(name = 'root', stack = []) {
-    this.name = name;
-    this.stack = stack;
+
+(function(CodeEditor) {
+  'use strict';
+
+  // ============================================
+  // Class Definition
+  // ============================================
+
+  /**
+   * Represents tokenizer state for incremental tokenization
+   */
+  class TokenizerState {
+    constructor(name = 'root', stack = []) {
+      this.name = name;
+      this.stack = stack;
+    }
+
+    clone() {
+      return new TokenizerState(this.name, [...this.stack]);
+    }
+
+    equals(other) {
+      if (!other) return false;
+      if (this.name !== other.name) return false;
+      if (this.stack.length !== other.stack.length) return false;
+      return this.stack.every((s, i) => s === other.stack[i]);
+    }
+
+    static initial() {
+      return new TokenizerState('root', []);
+    }
   }
 
-  clone() {
-    return new TokenizerState(this.name, [...this.stack]);
-  }
+  // ============================================
+  // Export to Namespace
+  // ============================================
 
-  equals(other) {
-    if (!other) return false;
-    if (this.name !== other.name) return false;
-    if (this.stack.length !== other.stack.length) return false;
-    return this.stack.every((s, i) => s === other.stack[i]);
-  }
+  CodeEditor.TokenizerState = TokenizerState;
 
-  static initial() {
-    return new TokenizerState('root', []);
-  }
-}
+})(window.CodeEditor = window.CodeEditor || {});

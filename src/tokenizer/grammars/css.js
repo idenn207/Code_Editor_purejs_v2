@@ -1,491 +1,500 @@
 /**
  * @fileoverview CSS grammar definition for Monarch-style tokenizer
- * @module tokenizer/grammars/css
  *
  * Based on Monaco Editor's CSS Monarch tokenizer pattern.
  * Supports selectors, properties, values, at-rules, and comments.
  */
 
-// ============================================
-// Token Types
-// ============================================
-
-export const CSSTokenType = Object.freeze({
-  // Selectors
-  SELECTOR_TAG: 'selector.tag',
-  SELECTOR_CLASS: 'selector.class',
-  SELECTOR_ID: 'selector.id',
-  SELECTOR_PSEUDO: 'selector.pseudo',
-  SELECTOR_ATTRIBUTE: 'selector.attribute',
-
-  // At-rules
-  AT_RULE: 'at-rule',
-  AT_RULE_NAME: 'at-rule.name',      // keyframes name, etc.
-  AT_RULE_KEYWORD: 'at-rule.keyword', // and, or, not, only, screen
-
-  // Properties and Values
-  PROPERTY: 'property',
-  VALUE: 'value',
-  VALUE_NUMBER: 'number',
-  VALUE_UNIT: 'unit',
-  VALUE_HEX: 'number.hex',
-
-  // Functions
-  FUNCTION: 'function',
-
-  // Strings
-  STRING: 'string',
-
-  // Comments
-  COMMENT: 'comment',
-
-  // Operators and Delimiters
-  OPERATOR: 'operator',
-  DELIMITER: 'delimiter',
-  DELIMITER_BRACKET: 'delimiter.bracket',
-
-  // Important
-  IMPORTANT: 'keyword.important',
-
-  // Standard
-  WHITESPACE: 'whitespace',
-  PLAIN: 'plain',
-});
-
-// ============================================
-// CSS At-Rules
-// ============================================
-
-const AT_RULES = [
-  'charset',
-  'font-face',
-  'import',
-  'keyframes',
-  'layer',
-  'media',
-  'namespace',
-  'page',
-  'property',
-  'scope',
-  'starting-style',
-  'supports',
-  'container',
-  'counter-style',
-  'font-feature-values',
-  'font-palette-values',
-];
-
-// ============================================
-// CSS Units
-// ============================================
-
-const CSS_UNITS = [
-  // Absolute lengths
-  'px', 'cm', 'mm', 'in', 'pt', 'pc',
-  // Relative lengths
-  'em', 'rem', 'ex', 'ch', 'vw', 'vh', 'vmin', 'vmax',
-  'lh', 'rlh', 'cap', 'ic',
-  // Container query units
-  'cqw', 'cqh', 'cqi', 'cqb', 'cqmin', 'cqmax',
-  // Angle
-  'deg', 'rad', 'grad', 'turn',
-  // Time
-  's', 'ms',
-  // Frequency
-  'Hz', 'kHz',
-  // Resolution
-  'dpi', 'dpcm', 'dppx',
-  // Flex
-  'fr',
-  // Percentage
-  '%',
-];
-
-// ============================================
-// Grammar Definition
-// ============================================
-
-export const CSSGrammar = {
-  name: 'css',
+(function(CodeEditor) {
+  'use strict';
+
+  CodeEditor.Grammars = CodeEditor.Grammars || {};
+
+  // ============================================
+  // Token Types
+  // ============================================
+
+  var CSSTokenType = Object.freeze({
+    // Selectors
+    SELECTOR_TAG: 'selector.tag',
+    SELECTOR_CLASS: 'selector.class',
+    SELECTOR_ID: 'selector.id',
+    SELECTOR_PSEUDO: 'selector.pseudo',
+    SELECTOR_ATTRIBUTE: 'selector.attribute',
+
+    // At-rules
+    AT_RULE: 'at-rule',
+    AT_RULE_NAME: 'at-rule.name',      // keyframes name, etc.
+    AT_RULE_KEYWORD: 'at-rule.keyword', // and, or, not, only, screen
+
+    // Properties and Values
+    PROPERTY: 'property',
+    VALUE: 'value',
+    VALUE_NUMBER: 'number',
+    VALUE_UNIT: 'unit',
+    VALUE_HEX: 'number.hex',
+
+    // Functions
+    FUNCTION: 'function',
+
+    // Strings
+    STRING: 'string',
+
+    // Comments
+    COMMENT: 'comment',
+
+    // Operators and Delimiters
+    OPERATOR: 'operator',
+    DELIMITER: 'delimiter',
+    DELIMITER_BRACKET: 'delimiter.bracket',
+
+    // Important
+    IMPORTANT: 'keyword.important',
+
+    // Standard
+    WHITESPACE: 'whitespace',
+    PLAIN: 'plain',
+  });
+
+  // ============================================
+  // CSS At-Rules
+  // ============================================
+
+  var AT_RULES = [
+    'charset',
+    'font-face',
+    'import',
+    'keyframes',
+    'layer',
+    'media',
+    'namespace',
+    'page',
+    'property',
+    'scope',
+    'starting-style',
+    'supports',
+    'container',
+    'counter-style',
+    'font-feature-values',
+    'font-palette-values',
+  ];
+
+  // ============================================
+  // CSS Units
+  // ============================================
+
+  var CSS_UNITS = [
+    // Absolute lengths
+    'px', 'cm', 'mm', 'in', 'pt', 'pc',
+    // Relative lengths
+    'em', 'rem', 'ex', 'ch', 'vw', 'vh', 'vmin', 'vmax',
+    'lh', 'rlh', 'cap', 'ic',
+    // Container query units
+    'cqw', 'cqh', 'cqi', 'cqb', 'cqmin', 'cqmax',
+    // Angle
+    'deg', 'rad', 'grad', 'turn',
+    // Time
+    's', 'ms',
+    // Frequency
+    'Hz', 'kHz',
+    // Resolution
+    'dpi', 'dpcm', 'dppx',
+    // Flex
+    'fr',
+    // Percentage
+    '%',
+  ];
+
+  // ============================================
+  // Grammar Definition
+  // ============================================
 
-  // ----------------------------------------
-  // Reference Lists
-  // ----------------------------------------
+  var CSSGrammar = {
+    name: 'css',
 
-  atRules: AT_RULES,
-  units: CSS_UNITS,
+    // ----------------------------------------
+    // Reference Lists
+    // ----------------------------------------
 
-  // Identifier pattern for @ reference
-  identPattern: /[a-zA-Z_][\w-]*/,
+    atRules: AT_RULES,
+    units: CSS_UNITS,
 
-  // ----------------------------------------
-  // Tokenizer Rules (State Machine)
-  // ----------------------------------------
+    // Identifier pattern for @ reference
+    identPattern: /[a-zA-Z_][\w-]*/,
 
-  tokenizer: {
-    // ----------------
-    // Root State - Selectors and At-Rules
-    // ----------------
-    root: [
-      // Whitespace
-      [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
+    // ----------------------------------------
+    // Tokenizer Rules (State Machine)
+    // ----------------------------------------
 
-      // Comments
-      [/\/\*/, CSSTokenType.COMMENT, '@comment'],
+    tokenizer: {
+      // ----------------
+      // Root State - Selectors and At-Rules
+      // ----------------
+      root: [
+        // Whitespace
+        [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
 
-      // At-rules (e.g., @media, @keyframes)
-      [/@[\w-]+/, CSSTokenType.AT_RULE, '@atRule'],
+        // Comments
+        [/\/\*/, CSSTokenType.COMMENT, '@comment'],
 
-      // Class selector
-      [/\.[a-zA-Z_][\w-]*/, CSSTokenType.SELECTOR_CLASS],
+        // At-rules (e.g., @media, @keyframes)
+        [/@[\w-]+/, CSSTokenType.AT_RULE, '@atRule'],
 
-      // ID selector
-      [/#[a-zA-Z_][\w-]*/, CSSTokenType.SELECTOR_ID],
+        // Class selector
+        [/\.[a-zA-Z_][\w-]*/, CSSTokenType.SELECTOR_CLASS],
 
-      // Pseudo-element (::before, ::after)
-      [/::[\w-]+/, CSSTokenType.SELECTOR_PSEUDO],
+        // ID selector
+        [/#[a-zA-Z_][\w-]*/, CSSTokenType.SELECTOR_ID],
 
-      // Pseudo-class (:hover, :nth-child)
-      [/:[\w-]+/, CSSTokenType.SELECTOR_PSEUDO],
+        // Pseudo-element (::before, ::after)
+        [/::[\w-]+/, CSSTokenType.SELECTOR_PSEUDO],
 
-      // Attribute selector start
-      [/\[/, CSSTokenType.DELIMITER_BRACKET, '@attributeSelector'],
+        // Pseudo-class (:hover, :nth-child)
+        [/:[\w-]+/, CSSTokenType.SELECTOR_PSEUDO],
 
-      // Tag/Element selector
-      [/[a-zA-Z_][\w-]*/, CSSTokenType.SELECTOR_TAG],
+        // Attribute selector start
+        [/\[/, CSSTokenType.DELIMITER_BRACKET, '@attributeSelector'],
 
-      // Universal selector
-      [/\*/, CSSTokenType.SELECTOR_TAG],
+        // Tag/Element selector
+        [/[a-zA-Z_][\w-]*/, CSSTokenType.SELECTOR_TAG],
 
-      // Combinators and separators
-      [/[>+~]/, CSSTokenType.OPERATOR],
-      [/,/, CSSTokenType.DELIMITER],
+        // Universal selector
+        [/\*/, CSSTokenType.SELECTOR_TAG],
 
-      // Declaration block start
-      [/\{/, CSSTokenType.DELIMITER_BRACKET, '@block'],
+        // Combinators and separators
+        [/[>+~]/, CSSTokenType.OPERATOR],
+        [/,/, CSSTokenType.DELIMITER],
 
-      // Fallback
-      [/./, CSSTokenType.PLAIN],
-    ],
+        // Declaration block start
+        [/\{/, CSSTokenType.DELIMITER_BRACKET, '@block'],
 
-    // ----------------
-    // Comment State (/* ... */)
-    // ----------------
-    comment: [
-      [/[^*]+/, CSSTokenType.COMMENT],
-      [/\*\//, CSSTokenType.COMMENT, '@pop'],
-      [/\*/, CSSTokenType.COMMENT],
-    ],
+        // Fallback
+        [/./, CSSTokenType.PLAIN],
+      ],
 
-    // ----------------
-    // At-Rule State (after @keyword)
-    // ----------------
-    atRule: [
-      // Whitespace
-      [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
+      // ----------------
+      // Comment State (/* ... */)
+      // ----------------
+      comment: [
+        [/[^*]+/, CSSTokenType.COMMENT],
+        [/\*\//, CSSTokenType.COMMENT, '@pop'],
+        [/\*/, CSSTokenType.COMMENT],
+      ],
 
-      // Comments inside at-rule
-      [/\/\*/, CSSTokenType.COMMENT, '@comment'],
+      // ----------------
+      // At-Rule State (after @keyword)
+      // ----------------
+      atRule: [
+        // Whitespace
+        [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
 
-      // URL function (MUST come before generic identifier)
-      [/url\s*\(/, CSSTokenType.FUNCTION, '@urlValue'],
+        // Comments inside at-rule
+        [/\/\*/, CSSTokenType.COMMENT, '@comment'],
 
-      // String in at-rule (e.g., @import "url")
-      [/"/, CSSTokenType.STRING, '@doubleString'],
-      [/'/, CSSTokenType.STRING, '@singleString'],
+        // URL function (MUST come before generic identifier)
+        [/url\s*\(/, CSSTokenType.FUNCTION, '@urlValue'],
 
-      // Media query keywords (MUST come before generic identifier)
-      [/\b(?:and|or|not|only|screen|print|all)\b/, CSSTokenType.AT_RULE_KEYWORD],
+        // String in at-rule (e.g., @import "url")
+        [/"/, CSSTokenType.STRING, '@doubleString'],
+        [/'/, CSSTokenType.STRING, '@singleString'],
 
-      // Media query features
-      [/\(/, CSSTokenType.DELIMITER_BRACKET, '@mediaFeature'],
+        // Media query keywords (MUST come before generic identifier)
+        [/\b(?:and|or|not|only|screen|print|all)\b/, CSSTokenType.AT_RULE_KEYWORD],
 
-      // At-rule block (e.g., @media { })
-      [/\{/, CSSTokenType.DELIMITER_BRACKET, '@atRuleBlock'],
+        // Media query features
+        [/\(/, CSSTokenType.DELIMITER_BRACKET, '@mediaFeature'],
 
-      // At-rule statement end (e.g., @import "file.css";)
-      [/;/, CSSTokenType.DELIMITER, '@pop'],
+        // At-rule block (e.g., @media { })
+        [/\{/, CSSTokenType.DELIMITER_BRACKET, '@atRuleBlock'],
 
-      // Operators
-      [/[,:]/, CSSTokenType.DELIMITER],
+        // At-rule statement end (e.g., @import "file.css";)
+        [/;/, CSSTokenType.DELIMITER, '@pop'],
 
-      // Generic identifier (keyframes name, animation name, etc.)
-      [/[a-zA-Z_][\w-]*/, CSSTokenType.AT_RULE_NAME],
+        // Operators
+        [/[,:]/, CSSTokenType.DELIMITER],
 
-      // Fallback
-      [/./, CSSTokenType.PLAIN],
-    ],
+        // Generic identifier (keyframes name, animation name, etc.)
+        [/[a-zA-Z_][\w-]*/, CSSTokenType.AT_RULE_NAME],
 
-    // ----------------
-    // Media Feature State (inside parentheses)
-    // ----------------
-    mediaFeature: [
-      [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
+        // Fallback
+        [/./, CSSTokenType.PLAIN],
+      ],
 
-      // Number with unit (MUST come before feature name to match 768px as one token)
-      [/[-+]?(\d+\.?\d*|\.\d+)(px|em|rem|vh|vw|vmin|vmax|%|ch|ex|cm|mm|in|pt|pc)?/, CSSTokenType.VALUE_NUMBER],
+      // ----------------
+      // Media Feature State (inside parentheses)
+      // ----------------
+      mediaFeature: [
+        [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
 
-      // Feature name (min-width, max-height, etc.)
-      [/[a-zA-Z_][\w-]*/, CSSTokenType.PROPERTY],
+        // Number with unit (MUST come before feature name to match 768px as one token)
+        [/[-+]?(\d+\.?\d*|\.\d+)(px|em|rem|vh|vw|vmin|vmax|%|ch|ex|cm|mm|in|pt|pc)?/, CSSTokenType.VALUE_NUMBER],
 
-      // Colon
-      [/:/, CSSTokenType.DELIMITER],
+        // Feature name (min-width, max-height, etc.)
+        [/[a-zA-Z_][\w-]*/, CSSTokenType.PROPERTY],
 
-      // Close parenthesis
-      [/\)/, CSSTokenType.DELIMITER_BRACKET, '@pop'],
+        // Colon
+        [/:/, CSSTokenType.DELIMITER],
 
-      // Fallback
-      [/./, CSSTokenType.VALUE],
-    ],
+        // Close parenthesis
+        [/\)/, CSSTokenType.DELIMITER_BRACKET, '@pop'],
 
-    // ----------------
-    // At-Rule Block State (nested rules)
-    // ----------------
-    atRuleBlock: [
-      // Whitespace
-      [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
+        // Fallback
+        [/./, CSSTokenType.VALUE],
+      ],
 
-      // Comments
-      [/\/\*/, CSSTokenType.COMMENT, '@comment'],
+      // ----------------
+      // At-Rule Block State (nested rules)
+      // ----------------
+      atRuleBlock: [
+        // Whitespace
+        [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
 
-      // Nested at-rule
-      [/@[\w-]+/, CSSTokenType.AT_RULE, '@atRule'],
+        // Comments
+        [/\/\*/, CSSTokenType.COMMENT, '@comment'],
 
-      // Class selector
-      [/\.[a-zA-Z_][\w-]*/, CSSTokenType.SELECTOR_CLASS],
+        // Nested at-rule
+        [/@[\w-]+/, CSSTokenType.AT_RULE, '@atRule'],
 
-      // ID selector
-      [/#[a-zA-Z_][\w-]*/, CSSTokenType.SELECTOR_ID],
+        // Class selector
+        [/\.[a-zA-Z_][\w-]*/, CSSTokenType.SELECTOR_CLASS],
 
-      // Pseudo selectors
-      [/::[\w-]+/, CSSTokenType.SELECTOR_PSEUDO],
-      [/:[\w-]+/, CSSTokenType.SELECTOR_PSEUDO],
+        // ID selector
+        [/#[a-zA-Z_][\w-]*/, CSSTokenType.SELECTOR_ID],
 
-      // Attribute selector
-      [/\[/, CSSTokenType.DELIMITER_BRACKET, '@attributeSelector'],
+        // Pseudo selectors
+        [/::[\w-]+/, CSSTokenType.SELECTOR_PSEUDO],
+        [/:[\w-]+/, CSSTokenType.SELECTOR_PSEUDO],
 
-      // Tag selector
-      [/[a-zA-Z_][\w-]*/, CSSTokenType.SELECTOR_TAG],
+        // Attribute selector
+        [/\[/, CSSTokenType.DELIMITER_BRACKET, '@attributeSelector'],
 
-      // Universal selector
-      [/\*/, CSSTokenType.SELECTOR_TAG],
+        // Tag selector
+        [/[a-zA-Z_][\w-]*/, CSSTokenType.SELECTOR_TAG],
 
-      // Combinators
-      [/[>+~]/, CSSTokenType.OPERATOR],
-      [/,/, CSSTokenType.DELIMITER],
+        // Universal selector
+        [/\*/, CSSTokenType.SELECTOR_TAG],
 
-      // Nested block
-      [/\{/, CSSTokenType.DELIMITER_BRACKET, '@block'],
+        // Combinators
+        [/[>+~]/, CSSTokenType.OPERATOR],
+        [/,/, CSSTokenType.DELIMITER],
 
-      // End at-rule block
-      [/\}/, CSSTokenType.DELIMITER_BRACKET, '@pop @pop'],
+        // Nested block
+        [/\{/, CSSTokenType.DELIMITER_BRACKET, '@block'],
 
-      // Fallback
-      [/./, CSSTokenType.PLAIN],
-    ],
+        // End at-rule block
+        [/\}/, CSSTokenType.DELIMITER_BRACKET, '@pop @pop'],
 
-    // ----------------
-    // Attribute Selector State ([attr="value"])
-    // ----------------
-    attributeSelector: [
-      [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
+        // Fallback
+        [/./, CSSTokenType.PLAIN],
+      ],
 
-      // Attribute name
-      [/[a-zA-Z_][\w-]*/, CSSTokenType.SELECTOR_ATTRIBUTE],
+      // ----------------
+      // Attribute Selector State ([attr="value"])
+      // ----------------
+      attributeSelector: [
+        [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
 
-      // Operators (=, ~=, |=, ^=, $=, *=)
-      [/[~|^$*]?=/, CSSTokenType.OPERATOR],
+        // Attribute name
+        [/[a-zA-Z_][\w-]*/, CSSTokenType.SELECTOR_ATTRIBUTE],
 
-      // Quoted value
-      [/"/, CSSTokenType.STRING, '@doubleString'],
-      [/'/, CSSTokenType.STRING, '@singleString'],
+        // Operators (=, ~=, |=, ^=, $=, *=)
+        [/[~|^$*]?=/, CSSTokenType.OPERATOR],
 
-      // Case sensitivity flag
-      [/[iIsS](?=\])/, CSSTokenType.VALUE],
+        // Quoted value
+        [/"/, CSSTokenType.STRING, '@doubleString'],
+        [/'/, CSSTokenType.STRING, '@singleString'],
 
-      // Close bracket
-      [/\]/, CSSTokenType.DELIMITER_BRACKET, '@pop'],
+        // Case sensitivity flag
+        [/[iIsS](?=\])/, CSSTokenType.VALUE],
 
-      // Fallback
-      [/./, CSSTokenType.VALUE],
-    ],
+        // Close bracket
+        [/\]/, CSSTokenType.DELIMITER_BRACKET, '@pop'],
 
-    // ----------------
-    // Declaration Block State ({ property: value; })
-    // ----------------
-    block: [
-      // Whitespace
-      [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
+        // Fallback
+        [/./, CSSTokenType.VALUE],
+      ],
 
-      // Comments
-      [/\/\*/, CSSTokenType.COMMENT, '@comment'],
+      // ----------------
+      // Declaration Block State ({ property: value; })
+      // ----------------
+      block: [
+        // Whitespace
+        [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
 
-      // CSS custom property (--variable-name) - MUST transition to afterProperty
-      [/--[a-zA-Z_][\w-]*/, CSSTokenType.PROPERTY, '@afterProperty'],
+        // Comments
+        [/\/\*/, CSSTokenType.COMMENT, '@comment'],
 
-      // Property name (vendor prefixes supported)
-      [/-?[a-zA-Z_][\w-]*/, CSSTokenType.PROPERTY, '@afterProperty'],
+        // CSS custom property (--variable-name) - MUST transition to afterProperty
+        [/--[a-zA-Z_][\w-]*/, CSSTokenType.PROPERTY, '@afterProperty'],
 
-      // End block
-      [/\}/, CSSTokenType.DELIMITER_BRACKET, '@pop'],
+        // Property name (vendor prefixes supported)
+        [/-?[a-zA-Z_][\w-]*/, CSSTokenType.PROPERTY, '@afterProperty'],
 
-      // Fallback
-      [/./, CSSTokenType.PLAIN],
-    ],
+        // End block
+        [/\}/, CSSTokenType.DELIMITER_BRACKET, '@pop'],
 
-    // ----------------
-    // After Property State (expecting : or invalid)
-    // ----------------
-    afterProperty: [
-      [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
+        // Fallback
+        [/./, CSSTokenType.PLAIN],
+      ],
 
-      // Colon - go to value
-      [/:/, CSSTokenType.DELIMITER, '@value'],
+      // ----------------
+      // After Property State (expecting : or invalid)
+      // ----------------
+      afterProperty: [
+        [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
 
-      // Missing colon - recover
-      [/(?=[;\}])/, '', '@pop'],
+        // Colon - go to value
+        [/:/, CSSTokenType.DELIMITER, '@value'],
 
-      // Fallback
-      [/./, '', '@pop'],
-    ],
+        // Missing colon - recover
+        [/(?=[;\}])/, '', '@pop'],
 
-    // ----------------
-    // Property Value State
-    // ----------------
-    value: [
-      // Whitespace
-      [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
+        // Fallback
+        [/./, '', '@pop'],
+      ],
 
-      // Comments
-      [/\/\*/, CSSTokenType.COMMENT, '@comment'],
+      // ----------------
+      // Property Value State
+      // ----------------
+      value: [
+        // Whitespace
+        [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
 
-      // !important
-      [/!important\b/i, CSSTokenType.IMPORTANT],
+        // Comments
+        [/\/\*/, CSSTokenType.COMMENT, '@comment'],
 
-      // Hex color (#fff, #ffffff, #ffffffff)
-      [/#[0-9a-fA-F]{3,8}\b/, CSSTokenType.VALUE_HEX],
+        // !important
+        [/!important\b/i, CSSTokenType.IMPORTANT],
 
-      // Number with unit
-      [/[-+]?(\d+\.?\d*|\.\d+)(px|em|rem|%|vh|vw|vmin|vmax|ch|ex|cm|mm|in|pt|pc|deg|rad|grad|turn|s|ms|Hz|kHz|dpi|dpcm|dppx|fr|lh|rlh|cap|ic|cqw|cqh|cqi|cqb|cqmin|cqmax)?/, CSSTokenType.VALUE_NUMBER],
+        // Hex color (#fff, #ffffff, #ffffffff)
+        [/#[0-9a-fA-F]{3,8}\b/, CSSTokenType.VALUE_HEX],
 
-      // Function call (rgb(), var(), calc(), etc.)
-      [/[a-zA-Z_][\w-]*\s*\(/, CSSTokenType.FUNCTION, '@functionArgs'],
+        // Number with unit
+        [/[-+]?(\d+\.?\d*|\.\d+)(px|em|rem|%|vh|vw|vmin|vmax|ch|ex|cm|mm|in|pt|pc|deg|rad|grad|turn|s|ms|Hz|kHz|dpi|dpcm|dppx|fr|lh|rlh|cap|ic|cqw|cqh|cqi|cqb|cqmin|cqmax)?/, CSSTokenType.VALUE_NUMBER],
 
-      // URL function
-      [/url\s*\(/, CSSTokenType.FUNCTION, '@urlValue'],
+        // Function call (rgb(), var(), calc(), etc.)
+        [/[a-zA-Z_][\w-]*\s*\(/, CSSTokenType.FUNCTION, '@functionArgs'],
 
-      // Quoted strings
-      [/"/, CSSTokenType.STRING, '@doubleString'],
-      [/'/, CSSTokenType.STRING, '@singleString'],
+        // URL function
+        [/url\s*\(/, CSSTokenType.FUNCTION, '@urlValue'],
 
-      // Keywords/identifiers (inherit, auto, none, etc.)
-      [/[a-zA-Z_][\w-]*/, CSSTokenType.VALUE],
+        // Quoted strings
+        [/"/, CSSTokenType.STRING, '@doubleString'],
+        [/'/, CSSTokenType.STRING, '@singleString'],
 
-      // Comma separator
-      [/,/, CSSTokenType.DELIMITER],
+        // Keywords/identifiers (inherit, auto, none, etc.)
+        [/[a-zA-Z_][\w-]*/, CSSTokenType.VALUE],
 
-      // Operators in values (e.g., calc expressions)
-      [/[+\-*/]/, CSSTokenType.OPERATOR],
+        // Comma separator
+        [/,/, CSSTokenType.DELIMITER],
 
-      // Semicolon - end value, pop twice (value and afterProperty)
-      [/;/, CSSTokenType.DELIMITER, '@pop @pop'],
+        // Operators in values (e.g., calc expressions)
+        [/[+\-*/]/, CSSTokenType.OPERATOR],
 
-      // End block without semicolon - pop twice
-      [/(?=\})/, '', '@pop @pop'],
+        // Semicolon - end value, pop twice (value and afterProperty)
+        [/;/, CSSTokenType.DELIMITER, '@pop @pop'],
 
-      // Fallback
-      [/./, CSSTokenType.VALUE],
-    ],
+        // End block without semicolon - pop twice
+        [/(?=\})/, '', '@pop @pop'],
 
-    // ----------------
-    // Function Arguments State
-    // ----------------
-    functionArgs: [
-      // Whitespace
-      [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
+        // Fallback
+        [/./, CSSTokenType.VALUE],
+      ],
 
-      // Nested function
-      [/[a-zA-Z_][\w-]*\s*\(/, CSSTokenType.FUNCTION, '@functionArgs'],
+      // ----------------
+      // Function Arguments State
+      // ----------------
+      functionArgs: [
+        // Whitespace
+        [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
 
-      // CSS variable reference
-      [/--[a-zA-Z_][\w-]*/, CSSTokenType.PROPERTY],
+        // Nested function
+        [/[a-zA-Z_][\w-]*\s*\(/, CSSTokenType.FUNCTION, '@functionArgs'],
 
-      // Number with unit
-      [/[-+]?(\d+\.?\d*|\.\d+)(px|em|rem|%|vh|vw|vmin|vmax|deg|rad|s|ms)?/, CSSTokenType.VALUE_NUMBER],
+        // CSS variable reference
+        [/--[a-zA-Z_][\w-]*/, CSSTokenType.PROPERTY],
 
-      // Hex color
-      [/#[0-9a-fA-F]{3,8}\b/, CSSTokenType.VALUE_HEX],
+        // Number with unit
+        [/[-+]?(\d+\.?\d*|\.\d+)(px|em|rem|%|vh|vw|vmin|vmax|deg|rad|s|ms)?/, CSSTokenType.VALUE_NUMBER],
 
-      // Quoted strings
-      [/"/, CSSTokenType.STRING, '@doubleString'],
-      [/'/, CSSTokenType.STRING, '@singleString'],
+        // Hex color
+        [/#[0-9a-fA-F]{3,8}\b/, CSSTokenType.VALUE_HEX],
 
-      // Keywords/identifiers
-      [/[a-zA-Z_][\w-]*/, CSSTokenType.VALUE],
+        // Quoted strings
+        [/"/, CSSTokenType.STRING, '@doubleString'],
+        [/'/, CSSTokenType.STRING, '@singleString'],
 
-      // Comma
-      [/,/, CSSTokenType.DELIMITER],
+        // Keywords/identifiers
+        [/[a-zA-Z_][\w-]*/, CSSTokenType.VALUE],
 
-      // Operators
-      [/[+\-*/]/, CSSTokenType.OPERATOR],
+        // Comma
+        [/,/, CSSTokenType.DELIMITER],
 
-      // Close parenthesis
-      [/\)/, CSSTokenType.FUNCTION, '@pop'],
+        // Operators
+        [/[+\-*/]/, CSSTokenType.OPERATOR],
 
-      // Fallback
-      [/./, CSSTokenType.VALUE],
-    ],
+        // Close parenthesis
+        [/\)/, CSSTokenType.FUNCTION, '@pop'],
 
-    // ----------------
-    // URL Value State (url(...))
-    // ----------------
-    urlValue: [
-      // Whitespace
-      [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
+        // Fallback
+        [/./, CSSTokenType.VALUE],
+      ],
 
-      // Quoted URL
-      [/"/, CSSTokenType.STRING, '@doubleString'],
-      [/'/, CSSTokenType.STRING, '@singleString'],
+      // ----------------
+      // URL Value State (url(...))
+      // ----------------
+      urlValue: [
+        // Whitespace
+        [/[ \t\r\n]+/, CSSTokenType.WHITESPACE],
 
-      // Unquoted URL content
-      [/[^)'"]+/, CSSTokenType.STRING],
+        // Quoted URL
+        [/"/, CSSTokenType.STRING, '@doubleString'],
+        [/'/, CSSTokenType.STRING, '@singleString'],
 
-      // Close parenthesis
-      [/\)/, CSSTokenType.FUNCTION, '@pop'],
-    ],
+        // Unquoted URL content
+        [/[^)'"]+/, CSSTokenType.STRING],
 
-    // ----------------
-    // Double-Quoted String State
-    // ----------------
-    doubleString: [
-      // Escape sequences
-      [/\\(?:[0-9a-fA-F]{1,6}\s?|.)/, CSSTokenType.STRING],
+        // Close parenthesis
+        [/\)/, CSSTokenType.FUNCTION, '@pop'],
+      ],
 
-      // String content
-      [/[^\\"]+/, CSSTokenType.STRING],
+      // ----------------
+      // Double-Quoted String State
+      // ----------------
+      doubleString: [
+        // Escape sequences
+        [/\\(?:[0-9a-fA-F]{1,6}\s?|.)/, CSSTokenType.STRING],
 
-      // End quote
-      [/"/, CSSTokenType.STRING, '@pop'],
-    ],
+        // String content
+        [/[^\\"]+/, CSSTokenType.STRING],
 
-    // ----------------
-    // Single-Quoted String State
-    // ----------------
-    singleString: [
-      // Escape sequences
-      [/\\(?:[0-9a-fA-F]{1,6}\s?|.)/, CSSTokenType.STRING],
+        // End quote
+        [/"/, CSSTokenType.STRING, '@pop'],
+      ],
 
-      // String content
-      [/[^\\']+/, CSSTokenType.STRING],
+      // ----------------
+      // Single-Quoted String State
+      // ----------------
+      singleString: [
+        // Escape sequences
+        [/\\(?:[0-9a-fA-F]{1,6}\s?|.)/, CSSTokenType.STRING],
 
-      // End quote
-      [/'/, CSSTokenType.STRING, '@pop'],
-    ],
-  },
-};
+        // String content
+        [/[^\\']+/, CSSTokenType.STRING],
 
-// ============================================
-// Exports
-// ============================================
+        // End quote
+        [/'/, CSSTokenType.STRING, '@pop'],
+      ],
+    },
+  };
 
-export { AT_RULES, CSS_UNITS };
+  // ============================================
+  // Export to Namespace
+  // ============================================
+
+  CodeEditor.Grammars.CSS = CSSGrammar;
+  CodeEditor.Grammars.CSSTokenType = CSSTokenType;
+  CodeEditor.Grammars.AT_RULES = AT_RULES;
+  CodeEditor.Grammars.CSS_UNITS = CSS_UNITS;
+
+})(window.CodeEditor = window.CodeEditor || {});

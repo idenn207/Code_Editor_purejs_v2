@@ -1,373 +1,378 @@
 /**
  * @fileoverview Autocomplete popup widget
- * @module features/autocomplete/AutocompleteWidget
  */
 
-// ============================================
-// Constants
-// ============================================
+(function(CodeEditor) {
+  'use strict';
 
-const MAX_VISIBLE_ITEMS = 10;
-const ITEM_HEIGHT = 24; // px
+  // ============================================
+  // Constants
+  // ============================================
 
-// ============================================
-// AutocompleteWidget Class
-// ============================================
+  var MAX_VISIBLE_ITEMS = 10;
+  var ITEM_HEIGHT = 24;
 
-export class AutocompleteWidget {
-  // ----------------------------------------
-  // Instance Properties
-  // ----------------------------------------
+  // ============================================
+  // AutocompleteWidget Class
+  // ============================================
 
-  _editor = null;
-  _container = null;
-  _listElement = null;
-  _visible = false;
-  _items = [];
-  _selectedIndex = 0;
-  _currentPrefix = '';
+  class AutocompleteWidget {
+    // ----------------------------------------
+    // Instance Properties
+    // ----------------------------------------
 
-  // Callbacks
-  _onSelect = null;
-  _onCancel = null;
+    _editor = null;
+    _container = null;
+    _listElement = null;
+    _visible = false;
+    _items = [];
+    _selectedIndex = 0;
+    _currentPrefix = '';
 
-  // ----------------------------------------
-  // Constructor
-  // ----------------------------------------
+    // Callbacks
+    _onSelect = null;
+    _onCancel = null;
 
-  /**
-   * @param {Object} editor - Editor instance
-   * @param {Object} callbacks - Event callbacks
-   */
-  constructor(editor, callbacks = {}) {
-    this._editor = editor;
-    this._onSelect = callbacks.onSelect || (() => {});
-    this._onCancel = callbacks.onCancel || (() => {});
+    // ----------------------------------------
+    // Constructor
+    // ----------------------------------------
 
-    this._createDOM();
-    this._bindEvents();
-  }
+    /**
+     * @param {Object} editor - Editor instance
+     * @param {Object} callbacks - Event callbacks
+     */
+    constructor(editor, callbacks) {
+      if (!callbacks) callbacks = {};
+      this._editor = editor;
+      this._onSelect = callbacks.onSelect || function() {};
+      this._onCancel = callbacks.onCancel || function() {};
 
-  // ----------------------------------------
-  // DOM Creation
-  // ----------------------------------------
-
-  _createDOM() {
-    this._container = document.createElement('div');
-    this._container.className = 'ec-autocomplete';
-    this._container.style.display = 'none';
-
-    this._listElement = document.createElement('ul');
-    this._listElement.className = 'ec-autocomplete-list';
-
-    this._container.appendChild(this._listElement);
-
-    // Append to editor container (not content which scrolls)
-    this._editor.view.container.appendChild(this._container);
-  }
-
-  // ----------------------------------------
-  // Event Binding
-  // ----------------------------------------
-
-  _bindEvents() {
-    // Handle clicks on items
-    this._listElement.addEventListener('click', (e) => {
-      const item = e.target.closest('.ec-autocomplete-item');
-      if (item) {
-        const index = parseInt(item.dataset.index, 10);
-        this._selectedIndex = index;
-        this._confirm();
-      }
-    });
-
-    // Prevent mouse events from affecting editor
-    this._container.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-    });
-  }
-
-  // ----------------------------------------
-  // Public Methods
-  // ----------------------------------------
-
-  /**
-   * Show autocomplete popup with items
-   * @param {string[]} items - Completion items
-   * @param {DOMRect} cursorRect - Cursor position rectangle
-   * @param {string} prefix - Current typing prefix (optional)
-   */
-  show(items, cursorRect, prefix = '') {
-    if (items.length === 0) {
-      this.hide();
-      return;
+      this._createDOM();
+      this._bindEvents();
     }
 
-    this._items = items;
-    this._selectedIndex = 0;
-    this._visible = true;
-    this._currentPrefix = prefix;
+    // ----------------------------------------
+    // DOM Creation
+    // ----------------------------------------
 
-    this._renderItems();
-    this._positionWidget(cursorRect);
+    _createDOM() {
+      this._container = document.createElement('div');
+      this._container.className = 'ec-autocomplete';
+      this._container.style.display = 'none';
 
-    this._container.style.display = 'block';
-  }
+      this._listElement = document.createElement('ul');
+      this._listElement.className = 'ec-autocomplete-list';
 
-  /**
-   * Hide the autocomplete popup
-   */
-  hide() {
-    if (!this._visible) return;
+      this._container.appendChild(this._listElement);
 
-    this._visible = false;
-    this._container.style.display = 'none';
-    this._items = [];
-    this._selectedIndex = 0;
-  }
+      this._editor.view.container.appendChild(this._container);
+    }
 
-  /**
-   * Check if widget is visible
-   * @returns {boolean}
-   */
-  isVisible() {
-    return this._visible;
-  }
+    // ----------------------------------------
+    // Event Binding
+    // ----------------------------------------
 
-  /**
-   * Handle keyboard events
-   * @param {KeyboardEvent} e - Keyboard event
-   * @returns {boolean} True if event was handled
-   */
-  handleKeyDown(e) {
-    if (!this._visible) return false;
+    _bindEvents() {
+      var self = this;
 
-    switch (e.key) {
-      case 'ArrowDown':
+      this._listElement.addEventListener('click', function(e) {
+        var item = e.target.closest('.ec-autocomplete-item');
+        if (item) {
+          var index = parseInt(item.dataset.index, 10);
+          self._selectedIndex = index;
+          self._confirm();
+        }
+      });
+
+      this._container.addEventListener('mousedown', function(e) {
         e.preventDefault();
-        e.stopImmediatePropagation();
-        this._selectNext();
-        return true;
+        e.stopPropagation();
+      });
+    }
 
-      case 'ArrowUp':
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        this._selectPrevious();
-        return true;
+    // ----------------------------------------
+    // Public Methods
+    // ----------------------------------------
 
-      case 'Enter':
-      case 'Tab':
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        this._confirm();
-        return true;
+    /**
+     * Show autocomplete popup with items
+     * @param {string[]} items - Completion items
+     * @param {DOMRect} cursorRect - Cursor position rectangle
+     * @param {string} prefix - Current typing prefix
+     */
+    show(items, cursorRect, prefix) {
+      if (prefix === undefined) prefix = '';
 
-      case 'Escape':
-        e.preventDefault();
-        e.stopImmediatePropagation();
+      if (items.length === 0) {
         this.hide();
-        this._onCancel();
-        return true;
+        return;
+      }
 
-      default:
-        return false;
-    }
-  }
-
-  /**
-   * Update items (for filtering while typing)
-   * @param {string[]} items - New filtered items
-   * @param {string} prefix - Current typing prefix (optional)
-   */
-  updateItems(items, prefix = '') {
-    if (items.length === 0) {
-      this.hide();
-      return;
-    }
-
-    this._items = items;
-    this._selectedIndex = Math.min(this._selectedIndex, items.length - 1);
-    if (prefix) {
+      this._items = items;
+      this._selectedIndex = 0;
+      this._visible = true;
       this._currentPrefix = prefix;
+
+      this._renderItems();
+      this._positionWidget(cursorRect);
+
+      this._container.style.display = 'block';
     }
-    this._renderItems();
-  }
 
-  /**
-   * Set the current prefix for highlighting
-   * @param {string} prefix
-   */
-  setPrefix(prefix) {
-    this._currentPrefix = prefix;
-    this._renderItems();
-  }
+    /**
+     * Hide the autocomplete popup
+     */
+    hide() {
+      if (!this._visible) return;
 
-  /**
-   * Get the currently selected item
-   * @returns {string|{label: string, insertText: string}|null}
-   */
-  getSelectedItem() {
-    if (this._items.length === 0) return null;
-    return this._items[this._selectedIndex];
-  }
+      this._visible = false;
+      this._container.style.display = 'none';
+      this._items = [];
+      this._selectedIndex = 0;
+    }
 
-  /**
-   * Get label from an item (handles both string and object items)
-   * @param {string|{label: string}} item
-   * @returns {string}
-   */
-  _getLabel(item) {
-    return typeof item === 'string' ? item : item.label;
-  }
+    /**
+     * Check if widget is visible
+     * @returns {boolean}
+     */
+    isVisible() {
+      return this._visible;
+    }
 
-  /**
-   * Get insert text from an item (handles both string and object items)
-   * @param {string|{label: string, insertText: string}} item
-   * @returns {string}
-   */
-  _getInsertText(item) {
-    if (typeof item === 'string') return item;
-    return item.insertText !== undefined ? item.insertText : item.label;
-  }
+    /**
+     * Handle keyboard events
+     * @param {KeyboardEvent} e - Keyboard event
+     * @returns {boolean} True if event was handled
+     */
+    handleKeyDown(e) {
+      if (!this._visible) return false;
 
-  /**
-   * Get cursor offset from an item (for positioning cursor after insertion)
-   * @param {string|{cursorOffset: number}} item
-   * @returns {number|null} Cursor offset from start of insertion, or null for default
-   */
-  _getCursorOffset(item) {
-    if (typeof item === 'string') return null;
-    return item.cursorOffset !== undefined ? item.cursorOffset : null;
-  }
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          this._selectNext();
+          return true;
 
-  // ----------------------------------------
-  // Private Methods
-  // ----------------------------------------
+        case 'ArrowUp':
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          this._selectPrevious();
+          return true;
 
-  _renderItems() {
-    this._listElement.innerHTML = '';
+        case 'Enter':
+        case 'Tab':
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          this._confirm();
+          return true;
 
-    this._items.forEach((item, index) => {
-      const li = document.createElement('li');
-      li.className = 'ec-autocomplete-item';
-      li.dataset.index = index;
+        case 'Escape':
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          this.hide();
+          this._onCancel();
+          return true;
 
-      // Highlight matching prefix
-      const label = this._getLabel(item);
-      const prefix = this._currentPrefix;
-
-      if (prefix && label.toLowerCase().startsWith(prefix.toLowerCase())) {
-        // Create highlighted prefix span
-        const matchSpan = document.createElement('span');
-        matchSpan.className = 'ec-autocomplete-match';
-        matchSpan.textContent = label.slice(0, prefix.length);
-
-        const restSpan = document.createElement('span');
-        restSpan.textContent = label.slice(prefix.length);
-
-        li.appendChild(matchSpan);
-        li.appendChild(restSpan);
-      } else {
-        li.textContent = label;
-      }
-
-      if (index === this._selectedIndex) {
-        li.classList.add('selected');
-      }
-
-      this._listElement.appendChild(li);
-    });
-
-    // Scroll selected item into view
-    this._scrollToSelected();
-  }
-
-  _positionWidget(cursorRect) {
-    const containerRect = this._editor.view.container.getBoundingClientRect();
-
-    // Calculate widget dimensions
-    const widgetHeight = Math.min(this._items.length, MAX_VISIBLE_ITEMS) * ITEM_HEIGHT + 8;
-    const widgetWidth = 220; // Fixed width
-
-    // Calculate position relative to container
-    let top = cursorRect.bottom - containerRect.top;
-    let left = cursorRect.left - containerRect.left;
-
-    // Check if widget would go below container
-    const containerBottom = containerRect.height;
-    if (top + widgetHeight > containerBottom) {
-      // Position above cursor instead
-      const aboveTop = cursorRect.top - containerRect.top - widgetHeight;
-      if (aboveTop >= 0) {
-        top = aboveTop;
-      } else {
-        // If no room above, constrain to container height
-        top = Math.max(0, containerBottom - widgetHeight - 10);
+        default:
+          return false;
       }
     }
 
-    // Ensure widget stays within container horizontally
-    if (left + widgetWidth > containerRect.width) {
-      left = Math.max(0, containerRect.width - widgetWidth - 10);
+    /**
+     * Update items (for filtering while typing)
+     * @param {string[]} items - New filtered items
+     * @param {string} prefix - Current typing prefix
+     */
+    updateItems(items, prefix) {
+      if (prefix === undefined) prefix = '';
+
+      if (items.length === 0) {
+        this.hide();
+        return;
+      }
+
+      this._items = items;
+      this._selectedIndex = Math.min(this._selectedIndex, items.length - 1);
+      if (prefix) {
+        this._currentPrefix = prefix;
+      }
+      this._renderItems();
     }
-    if (left < 0) left = 10;
 
-    // Ensure top doesn't go negative
-    if (top < 0) top = 10;
+    /**
+     * Set the current prefix for highlighting
+     * @param {string} prefix
+     */
+    setPrefix(prefix) {
+      this._currentPrefix = prefix;
+      this._renderItems();
+    }
 
-    this._container.style.top = `${top}px`;
-    this._container.style.left = `${left}px`;
-    this._container.style.maxHeight = `${Math.min(widgetHeight, containerRect.height - top - 10)}px`;
-  }
+    /**
+     * Get the currently selected item
+     * @returns {string|{label: string, insertText: string}|null}
+     */
+    getSelectedItem() {
+      if (this._items.length === 0) return null;
+      return this._items[this._selectedIndex];
+    }
 
-  _selectNext() {
-    if (this._items.length === 0) return;
+    /**
+     * Get label from an item
+     * @param {string|{label: string}} item
+     * @returns {string}
+     */
+    _getLabel(item) {
+      return typeof item === 'string' ? item : item.label;
+    }
 
-    this._selectedIndex = (this._selectedIndex + 1) % this._items.length;
-    this._updateSelection();
-  }
+    /**
+     * Get insert text from an item
+     * @param {string|{label: string, insertText: string}} item
+     * @returns {string}
+     */
+    _getInsertText(item) {
+      if (typeof item === 'string') return item;
+      return item.insertText !== undefined ? item.insertText : item.label;
+    }
 
-  _selectPrevious() {
-    if (this._items.length === 0) return;
+    /**
+     * Get cursor offset from an item
+     * @param {string|{cursorOffset: number}} item
+     * @returns {number|null}
+     */
+    _getCursorOffset(item) {
+      if (typeof item === 'string') return null;
+      return item.cursorOffset !== undefined ? item.cursorOffset : null;
+    }
 
-    this._selectedIndex = (this._selectedIndex - 1 + this._items.length) % this._items.length;
-    this._updateSelection();
-  }
+    // ----------------------------------------
+    // Private Methods
+    // ----------------------------------------
 
-  _updateSelection() {
-    const items = this._listElement.querySelectorAll('.ec-autocomplete-item');
-    items.forEach((item, index) => {
-      item.classList.toggle('selected', index === this._selectedIndex);
-    });
-    this._scrollToSelected();
-  }
+    _renderItems() {
+      var self = this;
+      this._listElement.innerHTML = '';
 
-  _scrollToSelected() {
-    const selectedItem = this._listElement.querySelector('.ec-autocomplete-item.selected');
-    if (selectedItem) {
-      selectedItem.scrollIntoView({ block: 'nearest' });
+      this._items.forEach(function(item, index) {
+        var li = document.createElement('li');
+        li.className = 'ec-autocomplete-item';
+        li.dataset.index = index;
+
+        var label = self._getLabel(item);
+        var prefix = self._currentPrefix;
+
+        if (prefix && label.toLowerCase().indexOf(prefix.toLowerCase()) === 0) {
+          var matchSpan = document.createElement('span');
+          matchSpan.className = 'ec-autocomplete-match';
+          matchSpan.textContent = label.slice(0, prefix.length);
+
+          var restSpan = document.createElement('span');
+          restSpan.textContent = label.slice(prefix.length);
+
+          li.appendChild(matchSpan);
+          li.appendChild(restSpan);
+        } else {
+          li.textContent = label;
+        }
+
+        if (index === self._selectedIndex) {
+          li.classList.add('selected');
+        }
+
+        self._listElement.appendChild(li);
+      });
+
+      this._scrollToSelected();
+    }
+
+    _positionWidget(cursorRect) {
+      var containerRect = this._editor.view.container.getBoundingClientRect();
+
+      var widgetHeight = Math.min(this._items.length, MAX_VISIBLE_ITEMS) * ITEM_HEIGHT + 8;
+      var widgetWidth = 220;
+
+      var top = cursorRect.bottom - containerRect.top;
+      var left = cursorRect.left - containerRect.left;
+
+      var containerBottom = containerRect.height;
+      if (top + widgetHeight > containerBottom) {
+        var aboveTop = cursorRect.top - containerRect.top - widgetHeight;
+        if (aboveTop >= 0) {
+          top = aboveTop;
+        } else {
+          top = Math.max(0, containerBottom - widgetHeight - 10);
+        }
+      }
+
+      if (left + widgetWidth > containerRect.width) {
+        left = Math.max(0, containerRect.width - widgetWidth - 10);
+      }
+      if (left < 0) left = 10;
+
+      if (top < 0) top = 10;
+
+      this._container.style.top = top + 'px';
+      this._container.style.left = left + 'px';
+      this._container.style.maxHeight = Math.min(widgetHeight, containerRect.height - top - 10) + 'px';
+    }
+
+    _selectNext() {
+      if (this._items.length === 0) return;
+
+      this._selectedIndex = (this._selectedIndex + 1) % this._items.length;
+      this._updateSelection();
+    }
+
+    _selectPrevious() {
+      if (this._items.length === 0) return;
+
+      this._selectedIndex = (this._selectedIndex - 1 + this._items.length) % this._items.length;
+      this._updateSelection();
+    }
+
+    _updateSelection() {
+      var self = this;
+      var items = this._listElement.querySelectorAll('.ec-autocomplete-item');
+      items.forEach(function(item, index) {
+        item.classList.toggle('selected', index === self._selectedIndex);
+      });
+      this._scrollToSelected();
+    }
+
+    _scrollToSelected() {
+      var selectedItem = this._listElement.querySelector('.ec-autocomplete-item.selected');
+      if (selectedItem) {
+        selectedItem.scrollIntoView({ block: 'nearest' });
+      }
+    }
+
+    _confirm() {
+      var selectedItem = this.getSelectedItem();
+      if (selectedItem) {
+        this._onSelect(this._getInsertText(selectedItem), this._getCursorOffset(selectedItem));
+      }
+      this.hide();
+    }
+
+    // ----------------------------------------
+    // Lifecycle
+    // ----------------------------------------
+
+    /**
+     * Clean up resources
+     */
+    dispose() {
+      if (this._container) this._container.remove();
+      this._editor = null;
     }
   }
 
-  _confirm() {
-    const selectedItem = this.getSelectedItem();
-    if (selectedItem) {
-      // Pass the insert text and cursor offset to the callback
-      this._onSelect(this._getInsertText(selectedItem), this._getCursorOffset(selectedItem));
-    }
-    this.hide();
-  }
+  // ============================================
+  // Export to Namespace
+  // ============================================
 
-  // ----------------------------------------
-  // Lifecycle
-  // ----------------------------------------
+  CodeEditor.AutocompleteWidget = AutocompleteWidget;
 
-  /**
-   * Clean up resources
-   */
-  dispose() {
-    this._container?.remove();
-    this._editor = null;
-  }
-}
+})(window.CodeEditor = window.CodeEditor || {});

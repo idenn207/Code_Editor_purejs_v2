@@ -8,618 +8,645 @@
  * - Special handling for Enter between paired brackets
  */
 
-import { Selection } from '../../model/Selection.js';
+(function(CodeEditor) {
+  'use strict';
 
-// ============================================
-// Constants
-// ============================================
+  // Get dependencies
+  var Selection = CodeEditor.Selection;
 
-// Characters that trigger indent increase on the next line
-const INDENT_TRIGGERS = new Set(['{', '(', '[', ':']);
+  // ============================================
+  // Constants
+  // ============================================
 
-// Characters that indicate we should dedent
-const DEDENT_TRIGGERS = new Set(['}', ')', ']']);
+  // Characters that trigger indent increase on the next line
+  var INDENT_TRIGGERS = new Set(['{', '(', '[', ':']);
 
-// HTML void elements (self-closing, don't need closing tags)
-const HTML_VOID_ELEMENTS = new Set([
-  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
-  'link', 'meta', 'param', 'source', 'track', 'wbr',
-]);
+  // Characters that indicate we should dedent
+  var DEDENT_TRIGGERS = new Set(['}', ')', ']']);
 
-// ============================================
-// Class Definition
-// ============================================
+  // HTML void elements (self-closing, don't need closing tags)
+  var HTML_VOID_ELEMENTS = new Set([
+    'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+    'link', 'meta', 'param', 'source', 'track', 'wbr',
+  ]);
 
-/**
- * Auto-indent feature for the code editor.
- * Handles smart indentation when pressing Enter.
- *
- * @example
- * const autoIndent = new AutoIndentFeature(editor, { tabSize: 2 });
- */
-export class AutoIndentFeature {
-  // ----------------------------------------
-  // Instance Properties
-  // ----------------------------------------
-  _editor = null;
-  _enabled = true;
-  _tabSize = 2;
-  _useSpaces = true;
-  _boundHandleKeyDown = null;
-
-  // ----------------------------------------
-  // Constructor
-  // ----------------------------------------
+  // ============================================
+  // Class Definition
+  // ============================================
 
   /**
-   * @param {Object} editor - Editor instance
-   * @param {Object} options - Configuration options
-   * @param {boolean} options.enabled - Whether auto-indent is enabled (default: true)
-   * @param {number} options.tabSize - Number of spaces per indent level (default: 2)
-   * @param {boolean} options.useSpaces - Use spaces instead of tabs (default: true)
+   * Auto-indent feature for the code editor.
+   * Handles smart indentation when pressing Enter.
+   *
+   * @example
+   * var autoIndent = new AutoIndentFeature(editor, { tabSize: 2 });
    */
-  constructor(editor, options = {}) {
-    this._editor = editor;
-    this._enabled = options.enabled !== false;
-    this._tabSize = options.tabSize || 2;
-    this._useSpaces = options.useSpaces !== false;
+  class AutoIndentFeature {
+    // ----------------------------------------
+    // Instance Properties
+    // ----------------------------------------
+    _editor = null;
+    _enabled = true;
+    _tabSize = 2;
+    _useSpaces = true;
+    _boundHandleKeyDown = null;
 
-    this._bindEvents();
-  }
+    // ----------------------------------------
+    // Constructor
+    // ----------------------------------------
 
-  // ----------------------------------------
-  // Event Binding
-  // ----------------------------------------
+    /**
+     * @param {Object} editor - Editor instance
+     * @param {Object} options - Configuration options
+     * @param {boolean} options.enabled - Whether auto-indent is enabled (default: true)
+     * @param {number} options.tabSize - Number of spaces per indent level (default: 2)
+     * @param {boolean} options.useSpaces - Use spaces instead of tabs (default: true)
+     */
+    constructor(editor, options = {}) {
+      this._editor = editor;
+      this._enabled = options.enabled !== false;
+      this._tabSize = options.tabSize || 2;
+      this._useSpaces = options.useSpaces !== false;
 
-  _bindEvents() {
-    this._boundHandleKeyDown = (e) => this._handleKeyDown(e);
-    this._editor.view.contentElement.addEventListener(
-      'keydown',
-      this._boundHandleKeyDown,
-      true // capture phase
-    );
-  }
-
-  // ----------------------------------------
-  // Event Handlers
-  // ----------------------------------------
-
-  _handleKeyDown(event) {
-    if (!this._enabled) return;
-
-    // Only handle Enter key (without Shift)
-    if (event.key === 'Enter' && !event.shiftKey) {
-      this._handleEnter(event);
+      this._bindEvents();
     }
 
-    // Handle Tab key for indentation (only without Shift)
-    if (event.key === 'Tab' && !event.shiftKey) {
-      this._handleIndent(event);
-    }
-  }
+    // ----------------------------------------
+    // Event Binding
+    // ----------------------------------------
 
-  _handleEnter(event) {
-    // Prevent default Enter behavior
-    event.preventDefault();
-    event.stopPropagation();
-
-    // Check for multi-cursor mode
-    if (this._editor.hasMultipleCursors()) {
-      this._handleMultiCursorEnter();
-      return;
-    }
-
-    const { start, end } = this._editor.getSelection();
-
-    // Get cursor position in line/column
-    const pos = this._editor.document.offsetToPosition(start);
-    const currentLine = this._editor.document.getLine(pos.line);
-
-    // Split line at cursor position
-    const beforeCursor = currentLine.slice(0, pos.column);
-    const afterCursor = currentLine.slice(pos.column);
-
-    // Get current indentation
-    const currentIndent = this._getIndentation(currentLine);
-
-    // Check last non-whitespace character before cursor
-    const trimmedBefore = beforeCursor.trimEnd();
-    const lastChar = trimmedBefore.slice(-1);
-    let shouldIncrease = INDENT_TRIGGERS.has(lastChar);
-
-    // Check for HTML opening tag without closing tag
-    const language = this._editor.getLanguage();
-    const htmlIndentContext = this._getHTMLIndentContext(beforeCursor, afterCursor, language);
-    if (htmlIndentContext.shouldIncrease) {
-      shouldIncrease = true;
+    _bindEvents() {
+      var self = this;
+      this._boundHandleKeyDown = function(e) {
+        self._handleKeyDown(e);
+      };
+      this._editor.view.contentElement.addEventListener(
+        'keydown',
+        this._boundHandleKeyDown,
+        true // capture phase
+      );
     }
 
-    // Check first non-whitespace character after cursor
-    const trimmedAfter = afterCursor.trimStart();
-    const firstCharAfter = trimmedAfter[0];
-    let hasClosingBracket = DEDENT_TRIGGERS.has(firstCharAfter);
+    // ----------------------------------------
+    // Event Handlers
+    // ----------------------------------------
 
-    // Check for HTML closing tag after cursor
-    if (htmlIndentContext.hasClosingTag) {
-      hasClosingBracket = true;
+    _handleKeyDown(event) {
+      if (!this._enabled) return;
+
+      // Only handle Enter key (without Shift)
+      if (event.key === 'Enter' && !event.shiftKey) {
+        this._handleEnter(event);
+      }
+
+      // Handle Tab key for indentation (only without Shift)
+      if (event.key === 'Tab' && !event.shiftKey) {
+        this._handleIndent(event);
+      }
     }
 
-    // Calculate new indentation
-    let newIndent = currentIndent;
-    if (shouldIncrease) {
-      newIndent = currentIndent + this._getIndentString();
-    }
+    _handleEnter(event) {
+      // Prevent default Enter behavior
+      event.preventDefault();
+      event.stopPropagation();
 
-    // Special case: Enter between paired brackets like {|} or <div>|</div>
-    if (shouldIncrease && hasClosingBracket) {
-      this._handleBracketEnter(start, end, currentIndent);
-      return;
-    }
+      // Check for multi-cursor mode
+      if (this._editor.hasMultipleCursors()) {
+        this._handleMultiCursorEnter();
+        return;
+      }
 
-    // Normal Enter: insert newline + indentation
-    const insertText = '\n' + newIndent;
+      var sel = this._editor.getSelection();
+      var start = sel.start;
+      var end = sel.end;
 
-    // If there's a selection, delete it first
-    if (start !== end) {
-      this._editor.document.replaceRange(start, end, insertText);
-    } else {
-      this._editor.document.insert(start, insertText);
-    }
+      // Get cursor position in line/column
+      var pos = this._editor.document.offsetToPosition(start);
+      var currentLine = this._editor.document.getLine(pos.line);
 
-    // Move cursor to end of inserted indentation
-    const newCursorPos = start + insertText.length;
-    this._editor.setSelection(newCursorPos, newCursorPos);
-  }
+      // Split line at cursor position
+      var beforeCursor = currentLine.slice(0, pos.column);
+      var afterCursor = currentLine.slice(pos.column);
 
-  /**
-   * Handle Enter key for multiple cursors
-   * Each cursor gets newline + appropriate indentation
-   */
-  _handleMultiCursorEnter() {
-    const doc = this._editor.document;
-    const selections = this._editor.getSelections();
-    const language = this._editor.getLanguage();
+      // Get current indentation
+      var currentIndent = this._getIndentation(currentLine);
 
-    // Calculate insert text for each cursor
-    const insertTexts = [];
-    for (const sel of selections.all) {
-      const pos = doc.offsetToPosition(sel.start);
-      const currentLine = doc.getLine(pos.line);
-      const beforeCursor = currentLine.slice(0, pos.column);
-      const afterCursor = currentLine.slice(pos.column);
+      // Check last non-whitespace character before cursor
+      var trimmedBefore = beforeCursor.trimEnd();
+      var lastChar = trimmedBefore.slice(-1);
+      var shouldIncrease = INDENT_TRIGGERS.has(lastChar);
 
-      const currentIndent = this._getIndentation(currentLine);
-      const trimmedBefore = beforeCursor.trimEnd();
-      const lastChar = trimmedBefore.slice(-1);
-
-      let shouldIncrease = INDENT_TRIGGERS.has(lastChar);
-      const htmlIndentContext = this._getHTMLIndentContext(beforeCursor, afterCursor, language);
+      // Check for HTML opening tag without closing tag
+      var language = this._editor.getLanguage();
+      var htmlIndentContext = this._getHTMLIndentContext(beforeCursor, afterCursor, language);
       if (htmlIndentContext.shouldIncrease) {
         shouldIncrease = true;
       }
 
-      let newIndent = currentIndent;
+      // Check first non-whitespace character after cursor
+      var trimmedAfter = afterCursor.trimStart();
+      var firstCharAfter = trimmedAfter[0];
+      var hasClosingBracket = DEDENT_TRIGGERS.has(firstCharAfter);
+
+      // Check for HTML closing tag after cursor
+      if (htmlIndentContext.hasClosingTag) {
+        hasClosingBracket = true;
+      }
+
+      // Calculate new indentation
+      var newIndent = currentIndent;
       if (shouldIncrease) {
         newIndent = currentIndent + this._getIndentString();
       }
 
-      insertTexts.push('\n' + newIndent);
+      // Special case: Enter between paired brackets like {|} or <div>|</div>
+      if (shouldIncrease && hasClosingBracket) {
+        this._handleBracketEnter(start, end, currentIndent);
+        return;
+      }
+
+      // Normal Enter: insert newline + indentation
+      var insertText = '\n' + newIndent;
+
+      // If there's a selection, delete it first
+      if (start !== end) {
+        this._editor.document.replaceRange(start, end, insertText);
+      } else {
+        this._editor.document.insert(start, insertText);
+      }
+
+      // Move cursor to end of inserted indentation
+      var newCursorPos = start + insertText.length;
+      this._editor.setSelection(newCursorPos, newCursorPos);
     }
 
-    // Process from end to start to preserve offsets
-    const sortedSels = selections.sorted(true); // descending
-    const sortedTexts = [];
+    /**
+     * Handle Enter key for multiple cursors
+     * Each cursor gets newline + appropriate indentation
+     */
+    _handleMultiCursorEnter() {
+      var doc = this._editor.document;
+      var selections = this._editor.getSelections();
+      var language = this._editor.getLanguage();
 
-    // Match sorted selections with their insert texts
-    const originalSels = selections.all;
-    for (const sortedSel of sortedSels) {
-      const idx = originalSels.findIndex(
-        (s) => s.start === sortedSel.start && s.end === sortedSel.end
-      );
-      sortedTexts.push(insertTexts[idx]);
+      // Calculate insert text for each cursor
+      var insertTexts = [];
+      for (var i = 0; i < selections.all.length; i++) {
+        var sel = selections.all[i];
+        var pos = doc.offsetToPosition(sel.start);
+        var currentLine = doc.getLine(pos.line);
+        var beforeCursor = currentLine.slice(0, pos.column);
+        var afterCursor = currentLine.slice(pos.column);
+
+        var currentIndent = this._getIndentation(currentLine);
+        var trimmedBefore = beforeCursor.trimEnd();
+        var lastChar = trimmedBefore.slice(-1);
+
+        var shouldIncrease = INDENT_TRIGGERS.has(lastChar);
+        var htmlIndentContext = this._getHTMLIndentContext(beforeCursor, afterCursor, language);
+        if (htmlIndentContext.shouldIncrease) {
+          shouldIncrease = true;
+        }
+
+        var newIndent = currentIndent;
+        if (shouldIncrease) {
+          newIndent = currentIndent + this._getIndentString();
+        }
+
+        insertTexts.push('\n' + newIndent);
+      }
+
+      // Process from end to start to preserve offsets
+      var sortedSels = selections.sorted(true); // descending
+      var sortedTexts = [];
+
+      // Match sorted selections with their insert texts
+      var originalSels = selections.all;
+      for (var j = 0; j < sortedSels.length; j++) {
+        var sortedSel = sortedSels[j];
+        var idx = originalSels.findIndex(function(s) {
+          return s.start === sortedSel.start && s.end === sortedSel.end;
+        });
+        sortedTexts.push(insertTexts[idx]);
+      }
+
+      // Insert at each cursor position
+      for (var k = 0; k < sortedSels.length; k++) {
+        var selToInsert = sortedSels[k];
+        var textToInsert = sortedTexts[k];
+        doc.replaceRange(selToInsert.start, selToInsert.end, textToInsert);
+      }
+
+      // Calculate new cursor positions
+      var ascendingSels = selections.sorted(false);
+      var newSelections = [];
+      var cumulativeOffset = 0;
+
+      for (var m = 0; m < ascendingSels.length; m++) {
+        var ascSel = ascendingSels[m];
+        var ascIdx = originalSels.findIndex(function(s) {
+          return s.start === ascSel.start && s.end === ascSel.end;
+        });
+        var insertedText = insertTexts[ascIdx];
+        var deletedLength = ascSel.end - ascSel.start;
+
+        var newPos = ascSel.start + cumulativeOffset + insertedText.length;
+        newSelections.push(Selection.cursor(newPos));
+
+        cumulativeOffset += insertedText.length - deletedLength;
+      }
+
+      this._editor.setSelections(newSelections);
     }
 
-    // Insert at each cursor position
-    for (let i = 0; i < sortedSels.length; i++) {
-      const sel = sortedSels[i];
-      const insertText = sortedTexts[i];
-      doc.replaceRange(sel.start, sel.end, insertText);
+    _handleBracketEnter(start, end, baseIndent) {
+      // {|} -> {\n  |\n}
+      var indent = this._getIndentString();
+      var insertText = '\n' + baseIndent + indent + '\n' + baseIndent;
+
+      // Replace selection (or insert at cursor)
+      if (start !== end) {
+        this._editor.document.replaceRange(start, end, insertText);
+      } else {
+        this._editor.document.insert(start, insertText);
+      }
+
+      // Place cursor at the indented middle line
+      // Position: start + '\n'.length + baseIndent.length + indent.length
+      var cursorPos = start + 1 + baseIndent.length + indent.length;
+      this._editor.setSelection(cursorPos, cursorPos);
     }
 
-    // Calculate new cursor positions
-    const ascendingSels = selections.sorted(false);
-    const newSelections = [];
-    let cumulativeOffset = 0;
+    /**
+     * Handle Tab key - insert indent at cursor or indent selected lines
+     * @param {KeyboardEvent} event
+     */
+    _handleIndent(event) {
+      event.preventDefault();
+      event.stopPropagation();
 
-    for (let i = 0; i < ascendingSels.length; i++) {
-      const sel = ascendingSels[i];
-      const idx = originalSels.findIndex(
-        (s) => s.start === sel.start && s.end === sel.end
-      );
-      const insertText = insertTexts[idx];
-      const deletedLength = sel.end - sel.start;
+      // Check for multi-cursor mode
+      if (this._editor.hasMultipleCursors()) {
+        this._handleMultiCursorIndent();
+        return;
+      }
 
-      const newPos = sel.start + cumulativeOffset + insertText.length;
-      newSelections.push(Selection.cursor(newPos));
+      var sel = this._editor.getSelection();
+      var indent = this._getIndentString();
 
-      cumulativeOffset += insertText.length - deletedLength;
+      // If no selection, just insert indent at cursor
+      if (sel.start === sel.end) {
+        this._editor.document.insert(sel.start, indent);
+        var newPos = sel.start + indent.length;
+        this._editor.setSelection(newPos, newPos);
+        return;
+      }
+
+      // If there's a selection, indent all selected lines
+      this._indentSelectedLines(sel.start, sel.end);
     }
 
-    this._editor.setSelections(newSelections);
-  }
+    /**
+     * Handle Shift+Tab - dedent at cursor or dedent selected lines
+     * @param {KeyboardEvent} event
+     */
+    _handleDedent(event) {
+      event.preventDefault();
+      event.stopPropagation();
 
-  _handleBracketEnter(start, end, baseIndent) {
-    // {|} -> {\n  |\n}
-    const indent = this._getIndentString();
-    const insertText = '\n' + baseIndent + indent + '\n' + baseIndent;
+      // Check for multi-cursor mode
+      if (this._editor.hasMultipleCursors()) {
+        this._handleMultiCursorDedent();
+        return;
+      }
 
-    // Replace selection (or insert at cursor)
-    if (start !== end) {
-      this._editor.document.replaceRange(start, end, insertText);
-    } else {
-      this._editor.document.insert(start, insertText);
+      var sel = this._editor.getSelection();
+
+      // Dedent lines (works for both cursor and selection)
+      this._dedentSelectedLines(sel.start, sel.end);
     }
 
-    // Place cursor at the indented middle line
-    // Position: start + '\n'.length + baseIndent.length + indent.length
-    const cursorPos = start + 1 + baseIndent.length + indent.length;
-    this._editor.setSelection(cursorPos, cursorPos);
-  }
+    /**
+     * Indent all lines in selection range
+     */
+    _indentSelectedLines(start, end) {
+      var doc = this._editor.document;
+      var startPos = doc.offsetToPosition(start);
+      var endPos = doc.offsetToPosition(end);
+      var indent = this._getIndentString();
 
-  /**
-   * Handle Tab key - insert indent at cursor or indent selected lines
-   * @param {KeyboardEvent} event
-   */
-  _handleIndent(event) {
-    event.preventDefault();
-    event.stopPropagation();
+      // Process lines from end to start to preserve offsets
+      for (var line = endPos.line; line >= startPos.line; line--) {
+        var lineStartOffset = doc.positionToOffset({ line: line, column: 0 });
+        doc.insert(lineStartOffset, indent);
+      }
 
-    // Check for multi-cursor mode
-    if (this._editor.hasMultipleCursors()) {
-      this._handleMultiCursorIndent();
-      return;
+      // Adjust selection
+      var lineCount = endPos.line - startPos.line + 1;
+      var newStart = start + indent.length;
+      var newEnd = end + (indent.length * lineCount);
+      this._editor.setSelection(newStart, newEnd);
     }
 
-    const { start, end } = this._editor.getSelection();
-    const indent = this._getIndentString();
+    /**
+     * Dedent all lines in selection range
+     */
+    _dedentSelectedLines(start, end) {
+      var doc = this._editor.document;
+      var startPos = doc.offsetToPosition(start);
+      var endPos = doc.offsetToPosition(end);
+      var tabSize = this._tabSize;
 
-    // If no selection, just insert indent at cursor
-    if (start === end) {
-      this._editor.document.insert(start, indent);
-      const newPos = start + indent.length;
-      this._editor.setSelection(newPos, newPos);
-      return;
-    }
+      var totalRemoved = 0;
+      var firstLineRemoved = 0;
 
-    // If there's a selection, indent all selected lines
-    this._indentSelectedLines(start, end);
-  }
+      // Process lines from end to start to preserve offsets
+      for (var line = endPos.line; line >= startPos.line; line--) {
+        var lineText = doc.getLine(line);
+        var lineStartOffset = doc.positionToOffset({ line: line, column: 0 });
 
-  /**
-   * Handle Shift+Tab - dedent at cursor or dedent selected lines
-   * @param {KeyboardEvent} event
-   */
-  _handleDedent(event) {
-    event.preventDefault();
-    event.stopPropagation();
+        // Calculate how much to remove
+        var removeCount = 0;
+        for (var i = 0; i < tabSize && i < lineText.length; i++) {
+          if (lineText[i] === ' ') {
+            removeCount++;
+          } else if (lineText[i] === '\t') {
+            removeCount++;
+            break;
+          } else {
+            break;
+          }
+        }
 
-    // Check for multi-cursor mode
-    if (this._editor.hasMultipleCursors()) {
-      this._handleMultiCursorDedent();
-      return;
-    }
-
-    const { start, end } = this._editor.getSelection();
-
-    // Dedent lines (works for both cursor and selection)
-    this._dedentSelectedLines(start, end);
-  }
-
-  /**
-   * Indent all lines in selection range
-   */
-  _indentSelectedLines(start, end) {
-    const doc = this._editor.document;
-    const startPos = doc.offsetToPosition(start);
-    const endPos = doc.offsetToPosition(end);
-    const indent = this._getIndentString();
-
-    // Process lines from end to start to preserve offsets
-    for (let line = endPos.line; line >= startPos.line; line--) {
-      const lineStartOffset = doc.positionToOffset({ line, column: 0 });
-      doc.insert(lineStartOffset, indent);
-    }
-
-    // Adjust selection
-    const lineCount = endPos.line - startPos.line + 1;
-    const newStart = start + indent.length;
-    const newEnd = end + (indent.length * lineCount);
-    this._editor.setSelection(newStart, newEnd);
-  }
-
-  /**
-   * Dedent all lines in selection range
-   */
-  _dedentSelectedLines(start, end) {
-    const doc = this._editor.document;
-    const startPos = doc.offsetToPosition(start);
-    const endPos = doc.offsetToPosition(end);
-    const tabSize = this._tabSize;
-
-    let totalRemoved = 0;
-    let firstLineRemoved = 0;
-
-    // Process lines from end to start to preserve offsets
-    for (let line = endPos.line; line >= startPos.line; line--) {
-      const lineText = doc.getLine(line);
-      const lineStartOffset = doc.positionToOffset({ line, column: 0 });
-
-      // Calculate how much to remove
-      let removeCount = 0;
-      for (let i = 0; i < tabSize && i < lineText.length; i++) {
-        if (lineText[i] === ' ') {
-          removeCount++;
-        } else if (lineText[i] === '\t') {
-          removeCount++;
-          break;
-        } else {
-          break;
+        if (removeCount > 0) {
+          doc.replaceRange(lineStartOffset, lineStartOffset + removeCount, '');
+          totalRemoved += removeCount;
+          if (line === startPos.line) {
+            firstLineRemoved = removeCount;
+          }
         }
       }
 
-      if (removeCount > 0) {
-        doc.replaceRange(lineStartOffset, lineStartOffset + removeCount, '');
-        totalRemoved += removeCount;
-        if (line === startPos.line) {
-          firstLineRemoved = removeCount;
+      // Adjust selection
+      var newStart = Math.max(0, start - firstLineRemoved);
+      var newEnd = Math.max(newStart, end - totalRemoved);
+      this._editor.setSelection(newStart, newEnd);
+    }
+
+    /**
+     * Handle Tab key for multiple cursors
+     */
+    _handleMultiCursorIndent() {
+      var doc = this._editor.document;
+      var selections = this._editor.getSelections();
+      var indent = this._getIndentString();
+
+      // Process from end to start to preserve offsets
+      var sortedSels = selections.sorted(true); // descending
+
+      for (var i = 0; i < sortedSels.length; i++) {
+        doc.insert(sortedSels[i].start, indent);
+      }
+
+      // Calculate new cursor positions
+      var ascendingSels = selections.sorted(false);
+      var newSelections = [];
+      var cumulativeOffset = 0;
+
+      for (var j = 0; j < ascendingSels.length; j++) {
+        var newPos = ascendingSels[j].start + cumulativeOffset + indent.length;
+        newSelections.push(Selection.cursor(newPos));
+        cumulativeOffset += indent.length;
+      }
+
+      this._editor.setSelections(newSelections);
+    }
+
+    /**
+     * Handle Shift+Tab for multiple cursors
+     */
+    _handleMultiCursorDedent() {
+      var doc = this._editor.document;
+      var selections = this._editor.getSelections();
+      var tabSize = this._tabSize;
+
+      // Calculate removal amounts for each cursor
+      var removalAmounts = [];
+      for (var i = 0; i < selections.all.length; i++) {
+        var sel = selections.all[i];
+        var pos = doc.offsetToPosition(sel.start);
+        var lineText = doc.getLine(pos.line);
+        var lineStartOffset = doc.positionToOffset({ line: pos.line, column: 0 });
+
+        var removeCount = 0;
+        for (var j = 0; j < tabSize && j < lineText.length; j++) {
+          if (lineText[j] === ' ') {
+            removeCount++;
+          } else if (lineText[j] === '\t') {
+            removeCount++;
+            break;
+          } else {
+            break;
+          }
         }
-      }
-    }
 
-    // Adjust selection
-    const newStart = Math.max(0, start - firstLineRemoved);
-    const newEnd = Math.max(newStart, end - totalRemoved);
-    this._editor.setSelection(newStart, newEnd);
-  }
-
-  /**
-   * Handle Tab key for multiple cursors
-   */
-  _handleMultiCursorIndent() {
-    const doc = this._editor.document;
-    const selections = this._editor.getSelections();
-    const indent = this._getIndentString();
-
-    // Process from end to start to preserve offsets
-    const sortedSels = selections.sorted(true); // descending
-
-    for (const sel of sortedSels) {
-      doc.insert(sel.start, indent);
-    }
-
-    // Calculate new cursor positions
-    const ascendingSels = selections.sorted(false);
-    const newSelections = [];
-    let cumulativeOffset = 0;
-
-    for (const sel of ascendingSels) {
-      const newPos = sel.start + cumulativeOffset + indent.length;
-      newSelections.push(Selection.cursor(newPos));
-      cumulativeOffset += indent.length;
-    }
-
-    this._editor.setSelections(newSelections);
-  }
-
-  /**
-   * Handle Shift+Tab for multiple cursors
-   */
-  _handleMultiCursorDedent() {
-    const doc = this._editor.document;
-    const selections = this._editor.getSelections();
-    const tabSize = this._tabSize;
-
-    // Calculate removal amounts for each cursor
-    const removalAmounts = [];
-    for (const sel of selections.all) {
-      const pos = doc.offsetToPosition(sel.start);
-      const lineText = doc.getLine(pos.line);
-      const lineStartOffset = doc.positionToOffset({ line: pos.line, column: 0 });
-
-      let removeCount = 0;
-      for (let i = 0; i < tabSize && i < lineText.length; i++) {
-        if (lineText[i] === ' ') {
-          removeCount++;
-        } else if (lineText[i] === '\t') {
-          removeCount++;
-          break;
-        } else {
-          break;
-        }
+        removalAmounts.push({ sel: sel, lineStartOffset: lineStartOffset, removeCount: removeCount, pos: pos });
       }
 
-      removalAmounts.push({ sel, lineStartOffset, removeCount, pos });
-    }
+      // Process from end to start to preserve offsets
+      var sortedRemovals = removalAmounts.slice().sort(function(a, b) {
+        return b.lineStartOffset - a.lineStartOffset;
+      });
 
-    // Process from end to start to preserve offsets
-    const sortedRemovals = [...removalAmounts].sort((a, b) => b.lineStartOffset - a.lineStartOffset);
+      // Track which lines we've already processed (for multi-cursors on same line)
+      var processedLines = new Set();
 
-    // Track which lines we've already processed (for multi-cursors on same line)
-    const processedLines = new Set();
-
-    for (const { pos, lineStartOffset, removeCount } of sortedRemovals) {
-      if (removeCount > 0 && !processedLines.has(pos.line)) {
-        doc.replaceRange(lineStartOffset, lineStartOffset + removeCount, '');
-        processedLines.add(pos.line);
-      }
-    }
-
-    // Calculate new cursor positions
-    const ascendingSels = selections.sorted(false);
-    const newSelections = [];
-    let cumulativeRemoved = 0;
-    const lineRemovalMap = new Map();
-
-    // Build map of line removals in ascending order
-    const ascendingRemovals = [...removalAmounts].sort((a, b) => a.lineStartOffset - b.lineStartOffset);
-    for (const { pos, removeCount } of ascendingRemovals) {
-      if (!lineRemovalMap.has(pos.line)) {
-        lineRemovalMap.set(pos.line, removeCount);
-      }
-    }
-
-    for (const sel of ascendingSels) {
-      const pos = doc.offsetToPosition(sel.start);
-      const removal = lineRemovalMap.get(pos.line) || 0;
-
-      // Calculate cumulative removal from previous lines
-      let prevLinesRemoval = 0;
-      for (const [line, amount] of lineRemovalMap) {
-        if (line < pos.line) {
-          prevLinesRemoval += amount;
+      for (var k = 0; k < sortedRemovals.length; k++) {
+        var removal = sortedRemovals[k];
+        if (removal.removeCount > 0 && !processedLines.has(removal.pos.line)) {
+          doc.replaceRange(removal.lineStartOffset, removal.lineStartOffset + removal.removeCount, '');
+          processedLines.add(removal.pos.line);
         }
       }
 
-      const newCol = Math.max(0, pos.column - removal);
-      const lineStartOffset = doc.positionToOffset({ line: pos.line, column: 0 }) - prevLinesRemoval;
-      const newPos = lineStartOffset + newCol;
-      newSelections.push(Selection.cursor(Math.max(0, newPos)));
+      // Calculate new cursor positions
+      var ascendingSels = selections.sorted(false);
+      var newSelections = [];
+      var lineRemovalMap = new Map();
+
+      // Build map of line removals in ascending order
+      var ascendingRemovals = removalAmounts.slice().sort(function(a, b) {
+        return a.lineStartOffset - b.lineStartOffset;
+      });
+      for (var m = 0; m < ascendingRemovals.length; m++) {
+        var ascRemoval = ascendingRemovals[m];
+        if (!lineRemovalMap.has(ascRemoval.pos.line)) {
+          lineRemovalMap.set(ascRemoval.pos.line, ascRemoval.removeCount);
+        }
+      }
+
+      for (var n = 0; n < ascendingSels.length; n++) {
+        var ascSel = ascendingSels[n];
+        var ascPos = doc.offsetToPosition(ascSel.start);
+        var lineRemoval = lineRemovalMap.get(ascPos.line) || 0;
+
+        // Calculate cumulative removal from previous lines
+        var prevLinesRemoval = 0;
+        lineRemovalMap.forEach(function(amount, line) {
+          if (line < ascPos.line) {
+            prevLinesRemoval += amount;
+          }
+        });
+
+        var newCol = Math.max(0, ascPos.column - lineRemoval);
+        var newLineStartOffset = doc.positionToOffset({ line: ascPos.line, column: 0 }) - prevLinesRemoval;
+        var newCursorPos = newLineStartOffset + newCol;
+        newSelections.push(Selection.cursor(Math.max(0, newCursorPos)));
+      }
+
+      this._editor.setSelections(newSelections);
     }
 
-    this._editor.setSelections(newSelections);
-  }
+    // ----------------------------------------
+    // Private Methods
+    // ----------------------------------------
 
-  // ----------------------------------------
-  // Private Methods
-  // ----------------------------------------
+    /**
+     * Extract leading whitespace from a line
+     * @param {string} line
+     * @returns {string}
+     */
+    _getIndentation(line) {
+      var match = line.match(/^(\s*)/);
+      return match ? match[1] : '';
+    }
 
-  /**
-   * Extract leading whitespace from a line
-   * @param {string} line
-   * @returns {string}
-   */
-  _getIndentation(line) {
-    const match = line.match(/^(\s*)/);
-    return match ? match[1] : '';
-  }
+    /**
+     * Get HTML-specific indent context
+     * @param {string} beforeCursor - Text before cursor
+     * @param {string} afterCursor - Text after cursor
+     * @param {string} language - Current language
+     * @returns {{ shouldIncrease: boolean, hasClosingTag: boolean }}
+     */
+    _getHTMLIndentContext(beforeCursor, afterCursor, language) {
+      var result = { shouldIncrease: false, hasClosingTag: false };
 
-  /**
-   * Get HTML-specific indent context
-   * @param {string} beforeCursor - Text before cursor
-   * @param {string} afterCursor - Text after cursor
-   * @param {string} language - Current language
-   * @returns {{ shouldIncrease: boolean, hasClosingTag: boolean }}
-   */
-  _getHTMLIndentContext(beforeCursor, afterCursor, language) {
-    const result = { shouldIncrease: false, hasClosingTag: false };
+      if (language !== 'html') {
+        return result;
+      }
 
-    if (language !== 'html') {
+      // Check if line ends with an opening tag: <div>, <span class="foo">, etc.
+      // Pattern: <tagname ...> at the end (not self-closing />)
+      var openingTagMatch = beforeCursor.match(/<(\w+)(?:\s+[^>]*)?>$/);
+      if (openingTagMatch) {
+        var tagName = openingTagMatch[1].toLowerCase();
+        // Don't indent after void elements
+        if (!HTML_VOID_ELEMENTS.has(tagName)) {
+          result.shouldIncrease = true;
+        }
+      }
+
+      // Check if there's a closing tag immediately after cursor
+      // Pattern: </tagname> at the start of afterCursor
+      var closingTagMatch = afterCursor.match(/^\s*<\/(\w+)>/);
+      if (closingTagMatch) {
+        result.hasClosingTag = true;
+      }
+
       return result;
     }
 
-    // Check if line ends with an opening tag: <div>, <span class="foo">, etc.
-    // Pattern: <tagname ...> at the end (not self-closing />)
-    const openingTagMatch = beforeCursor.match(/<(\w+)(?:\s+[^>]*)?>$/);
-    if (openingTagMatch) {
-      const tagName = openingTagMatch[1].toLowerCase();
-      // Don't indent after void elements
-      if (!HTML_VOID_ELEMENTS.has(tagName)) {
-        result.shouldIncrease = true;
+    /**
+     * Get the indent string based on settings
+     * @returns {string}
+     */
+    _getIndentString() {
+      return this._useSpaces ? ' '.repeat(this._tabSize) : '\t';
+    }
+
+    // ----------------------------------------
+    // Public API
+    // ----------------------------------------
+
+    /**
+     * Enable auto-indent feature
+     */
+    enable() {
+      this._enabled = true;
+    }
+
+    /**
+     * Disable auto-indent feature
+     */
+    disable() {
+      this._enabled = false;
+    }
+
+    /**
+     * Check if auto-indent is enabled
+     * @returns {boolean}
+     */
+    isEnabled() {
+      return this._enabled;
+    }
+
+    /**
+     * Set tab size
+     * @param {number} size
+     */
+    setTabSize(size) {
+      this._tabSize = size;
+    }
+
+    /**
+     * Get tab size
+     * @returns {number}
+     */
+    getTabSize() {
+      return this._tabSize;
+    }
+
+    /**
+     * Set whether to use spaces or tabs
+     * @param {boolean} useSpaces
+     */
+    setUseSpaces(useSpaces) {
+      this._useSpaces = useSpaces;
+    }
+
+    /**
+     * Check if using spaces
+     * @returns {boolean}
+     */
+    isUsingSpaces() {
+      return this._useSpaces;
+    }
+
+    // ----------------------------------------
+    // Lifecycle
+    // ----------------------------------------
+
+    /**
+     * Clean up resources
+     */
+    dispose() {
+      if (this._boundHandleKeyDown) {
+        this._editor.view.contentElement.removeEventListener(
+          'keydown',
+          this._boundHandleKeyDown,
+          true
+        );
       }
+
+      this._editor = null;
     }
-
-    // Check if there's a closing tag immediately after cursor
-    // Pattern: </tagname> at the start of afterCursor
-    const closingTagMatch = afterCursor.match(/^\s*<\/(\w+)>/);
-    if (closingTagMatch) {
-      result.hasClosingTag = true;
-    }
-
-    return result;
   }
 
-  /**
-   * Get the indent string based on settings
-   * @returns {string}
-   */
-  _getIndentString() {
-    return this._useSpaces ? ' '.repeat(this._tabSize) : '\t';
-  }
+  // ============================================
+  // Export to namespace
+  // ============================================
 
-  // ----------------------------------------
-  // Public API
-  // ----------------------------------------
+  CodeEditor.Features = CodeEditor.Features || {};
+  CodeEditor.Features.AutoIndent = AutoIndentFeature;
 
-  /**
-   * Enable auto-indent feature
-   */
-  enable() {
-    this._enabled = true;
-  }
-
-  /**
-   * Disable auto-indent feature
-   */
-  disable() {
-    this._enabled = false;
-  }
-
-  /**
-   * Check if auto-indent is enabled
-   * @returns {boolean}
-   */
-  isEnabled() {
-    return this._enabled;
-  }
-
-  /**
-   * Set tab size
-   * @param {number} size
-   */
-  setTabSize(size) {
-    this._tabSize = size;
-  }
-
-  /**
-   * Get tab size
-   * @returns {number}
-   */
-  getTabSize() {
-    return this._tabSize;
-  }
-
-  /**
-   * Set whether to use spaces or tabs
-   * @param {boolean} useSpaces
-   */
-  setUseSpaces(useSpaces) {
-    this._useSpaces = useSpaces;
-  }
-
-  /**
-   * Check if using spaces
-   * @returns {boolean}
-   */
-  isUsingSpaces() {
-    return this._useSpaces;
-  }
-
-  // ----------------------------------------
-  // Lifecycle
-  // ----------------------------------------
-
-  /**
-   * Clean up resources
-   */
-  dispose() {
-    if (this._boundHandleKeyDown) {
-      this._editor.view.contentElement.removeEventListener(
-        'keydown',
-        this._boundHandleKeyDown,
-        true
-      );
-    }
-
-    this._editor = null;
-  }
-}
+})(window.CodeEditor = window.CodeEditor || {});

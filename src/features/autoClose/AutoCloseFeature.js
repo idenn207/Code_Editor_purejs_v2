@@ -6,574 +6,598 @@
  * Supports skip-over and pair deletion.
  */
 
-import { Selection } from '../../model/Selection.js';
+(function(CodeEditor) {
+  'use strict';
 
-// ============================================
-// Constants
-// ============================================
+  // Get dependencies
+  var Selection = CodeEditor.Selection;
 
-const PAIRS = {
-  '(': ')',
-  '[': ']',
-  '{': '}',
-  '"': '"',
-  "'": "'",
-  '`': '`',
-};
+  // ============================================
+  // Constants
+  // ============================================
 
-const CLOSE_CHARS = new Set([')', ']', '}', '"', "'", '`']);
+  var PAIRS = {
+    '(': ')',
+    '[': ']',
+    '{': '}',
+    '"': '"',
+    "'": "'",
+    '`': '`',
+  };
 
-// Characters that, when appearing after cursor, should NOT trigger auto-close
-const NO_AUTOCLOSE_BEFORE = /[\w]/;
+  var CLOSE_CHARS = new Set([')', ']', '}', '"', "'", '`']);
 
-// HTML void elements (self-closing, don't need closing tags)
-const HTML_VOID_ELEMENTS = new Set([
-  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
-  'link', 'meta', 'param', 'source', 'track', 'wbr',
-]);
+  // Characters that, when appearing after cursor, should NOT trigger auto-close
+  var NO_AUTOCLOSE_BEFORE = /[\w]/;
 
-// ============================================
-// Class Definition
-// ============================================
+  // HTML void elements (self-closing, don't need closing tags)
+  var HTML_VOID_ELEMENTS = new Set([
+    'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+    'link', 'meta', 'param', 'source', 'track', 'wbr',
+  ]);
 
-/**
- * Auto-close feature for the code editor.
- * Automatically inserts closing characters for brackets and quotes.
- *
- * @example
- * const autoClose = new AutoCloseFeature(editor);
- * // Type '(' and ')' is automatically inserted
- */
-export class AutoCloseFeature {
-  // ----------------------------------------
-  // Instance Properties
-  // ----------------------------------------
-  _editor = null;
-  _enabled = true;
-  _boundHandleKeyDown = null;
-  _boundHandleInput = null;
-  _lastInsertedPair = null;
-  _pendingHTMLTagClose = null;
-  _pendingMultiCursorClose = null; // For multi-cursor auto-close
-
-  // ----------------------------------------
-  // Constructor
-  // ----------------------------------------
+  // ============================================
+  // Class Definition
+  // ============================================
 
   /**
-   * @param {Object} editor - Editor instance
-   * @param {Object} options - Configuration options
-   * @param {boolean} options.enabled - Whether auto-close is enabled (default: true)
+   * Auto-close feature for the code editor.
+   * Automatically inserts closing characters for brackets and quotes.
+   *
+   * @example
+   * var autoClose = new AutoCloseFeature(editor);
+   * // Type '(' and ')' is automatically inserted
    */
-  constructor(editor, options = {}) {
-    this._editor = editor;
-    this._enabled = options.enabled !== false;
+  class AutoCloseFeature {
+    // ----------------------------------------
+    // Instance Properties
+    // ----------------------------------------
+    _editor = null;
+    _enabled = true;
+    _boundHandleKeyDown = null;
+    _boundHandleInput = null;
+    _lastInsertedPair = null;
+    _pendingHTMLTagClose = null;
+    _pendingMultiCursorClose = null; // For multi-cursor auto-close
 
-    this._bindEvents();
-  }
+    // ----------------------------------------
+    // Constructor
+    // ----------------------------------------
 
-  // ----------------------------------------
-  // Event Binding
-  // ----------------------------------------
+    /**
+     * @param {Object} editor - Editor instance
+     * @param {Object} options - Configuration options
+     * @param {boolean} options.enabled - Whether auto-close is enabled (default: true)
+     */
+    constructor(editor, options = {}) {
+      this._editor = editor;
+      this._enabled = options.enabled !== false;
 
-  _bindEvents() {
-    // Bind keydown at capture phase to intercept before input handlers
-    this._boundHandleKeyDown = (e) => this._handleKeyDown(e);
-    this._editor.view.contentElement.addEventListener(
-      'keydown',
-      this._boundHandleKeyDown,
-      true // capture phase
-    );
-
-    // Listen for input events to handle auto-insert after text is typed
-    this._boundHandleInput = (event) => this._handleInput(event);
-    this._editor.on('input', this._boundHandleInput);
-  }
-
-  // ----------------------------------------
-  // Event Handlers
-  // ----------------------------------------
-
-  _handleKeyDown(event) {
-    if (!this._enabled) return;
-
-    const { key } = event;
-
-    // Handle Backspace for pair deletion
-    if (key === 'Backspace') {
-      if (this._handleBackspace(event)) {
-        return;
-      }
+      this._bindEvents();
     }
 
-    // Handle closing characters for skip-over
-    if (CLOSE_CHARS.has(key)) {
-      if (this._handleSkipOver(key, event)) {
-        return;
-      }
+    // ----------------------------------------
+    // Event Binding
+    // ----------------------------------------
+
+    _bindEvents() {
+      var self = this;
+
+      // Bind keydown at capture phase to intercept before input handlers
+      this._boundHandleKeyDown = function(e) {
+        self._handleKeyDown(e);
+      };
+      this._editor.view.contentElement.addEventListener(
+        'keydown',
+        this._boundHandleKeyDown,
+        true // capture phase
+      );
+
+      // Listen for input events to handle auto-insert after text is typed
+      this._boundHandleInput = function(event) {
+        self._handleInput(event);
+      };
+      this._editor.on('input', this._boundHandleInput);
     }
 
-    // Handle '>' for HTML tag auto-close
-    if (key === '>' && this._editor.getLanguage() === 'html') {
-      this._prepareHTMLTagClose();
-    }
+    // ----------------------------------------
+    // Event Handlers
+    // ----------------------------------------
 
-    // Handle opening characters - mark for auto-close
-    if (PAIRS[key]) {
-      // Check for multi-cursor mode
-      if (this._editor.hasMultipleCursors()) {
-        this._prepareMultiCursorAutoClose(key);
-      } else {
-        this._prepareAutoClose(key);
-      }
-    }
-  }
+    _handleKeyDown(event) {
+      if (!this._enabled) return;
 
-  _handleInput(event) {
-    if (!this._enabled) return;
+      var key = event.key;
 
-    // Check if we should auto-close HTML tag after this input
-    if (this._pendingHTMLTagClose) {
-      const tagName = this._pendingHTMLTagClose;
-      this._pendingHTMLTagClose = null;
-
-      const text = this._editor.getValue();
-      const { end } = this._editor.getSelection();
-
-      // Verify '>' was actually inserted
-      if (text[end - 1] === '>') {
-        this._insertHTMLClosingTag(tagName, end);
-      }
-    }
-
-    // Check if we should auto-close for multi-cursor
-    if (this._pendingMultiCursorClose) {
-      const { openChar } = this._pendingMultiCursorClose;
-      this._pendingMultiCursorClose = null;
-
-      this._insertClosingCharAtAllCursors(openChar);
-      return;
-    }
-
-    // Check if we should auto-close after this input (single cursor)
-    if (this._lastInsertedPair) {
-      const { openChar, position } = this._lastInsertedPair;
-      this._lastInsertedPair = null;
-
-      // Verify the character was actually inserted at expected position
-      const text = this._editor.getValue();
-      const { end } = this._editor.getSelection();
-
-      if (text[end - 1] === openChar) {
-        this._insertClosingChar(openChar, end);
-      }
-    }
-  }
-
-  // ----------------------------------------
-  // Auto-Close Logic
-  // ----------------------------------------
-
-  _prepareAutoClose(openChar) {
-    const { start, end } = this._editor.getSelection();
-
-    // Don't auto-close if there's a selection (text will be replaced)
-    if (start !== end) {
-      this._lastInsertedPair = null;
-      return;
-    }
-
-    const text = this._editor.getValue();
-    const charAfter = text[end];
-
-    // Don't auto-close before alphanumeric characters
-    if (charAfter && NO_AUTOCLOSE_BEFORE.test(charAfter)) {
-      this._lastInsertedPair = null;
-      return;
-    }
-
-    // For quotes, check if we're inside a string
-    if (openChar === '"' || openChar === "'" || openChar === '`') {
-      const charBefore = text[end - 1];
-
-      // Don't auto-close if previous char is alphanumeric (likely end of word)
-      if (charBefore && /[\w]/.test(charBefore)) {
-        this._lastInsertedPair = null;
-        return;
-      }
-    }
-
-    // Mark for auto-close
-    this._lastInsertedPair = {
-      openChar,
-      position: end,
-    };
-  }
-
-  _insertClosingChar(openChar, currentPos) {
-    const closeChar = PAIRS[openChar];
-
-    // Insert closing character
-    this._editor.document.replaceRange(currentPos, currentPos, closeChar);
-
-    // Move cursor back between the pair
-    this._editor.setSelection(currentPos, currentPos);
-  }
-
-  /**
-   * Prepare multi-cursor auto-close
-   * @param {string} openChar - Opening character
-   */
-  _prepareMultiCursorAutoClose(openChar) {
-    const text = this._editor.getValue();
-    const selections = this._editor.getSelections();
-
-    // Check if all cursors should auto-close
-    let shouldAutoClose = true;
-
-    for (const sel of selections.all) {
-      // Don't auto-close if there's a selection
-      if (!sel.isEmpty) {
-        shouldAutoClose = false;
-        break;
+      // Handle Backspace for pair deletion
+      if (key === 'Backspace') {
+        if (this._handleBackspace(event)) {
+          return;
+        }
       }
 
-      const charAfter = text[sel.end];
-
-      // Don't auto-close before alphanumeric characters
-      if (charAfter && NO_AUTOCLOSE_BEFORE.test(charAfter)) {
-        shouldAutoClose = false;
-        break;
+      // Handle closing characters for skip-over
+      if (CLOSE_CHARS.has(key)) {
+        if (this._handleSkipOver(key, event)) {
+          return;
+        }
       }
 
-      // For quotes, check context
-      if (openChar === '"' || openChar === "'" || openChar === '`') {
-        const charBefore = text[sel.end - 1];
+      // Handle '>' for HTML tag auto-close
+      if (key === '>' && this._editor.getLanguage() === 'html') {
+        this._prepareHTMLTagClose();
+      }
 
-        // Don't auto-close if previous char is alphanumeric
-        if (charBefore && /[\w]/.test(charBefore)) {
-          shouldAutoClose = false;
-          break;
+      // Handle opening characters - mark for auto-close
+      if (PAIRS[key]) {
+        // Check for multi-cursor mode
+        if (this._editor.hasMultipleCursors()) {
+          this._prepareMultiCursorAutoClose(key);
+        } else {
+          this._prepareAutoClose(key);
         }
       }
     }
 
-    if (shouldAutoClose) {
-      this._pendingMultiCursorClose = { openChar };
-    } else {
-      this._pendingMultiCursorClose = null;
-    }
-  }
+    _handleInput(event) {
+      if (!this._enabled) return;
 
-  /**
-   * Insert closing character at all cursor positions
-   * @param {string} openChar - Opening character
-   */
-  _insertClosingCharAtAllCursors(openChar) {
-    const closeChar = PAIRS[openChar];
-    const text = this._editor.getValue();
-    const selections = this._editor.getSelections();
+      // Check if we should auto-close HTML tag after this input
+      if (this._pendingHTMLTagClose) {
+        var tagName = this._pendingHTMLTagClose;
+        this._pendingHTMLTagClose = null;
 
-    // Verify all cursors have the opening char before them
-    let allValid = true;
-    for (const sel of selections.all) {
-      if (text[sel.end - 1] !== openChar) {
-        allValid = false;
-        break;
+        var text = this._editor.getValue();
+        var sel = this._editor.getSelection();
+
+        // Verify '>' was actually inserted
+        if (text[sel.end - 1] === '>') {
+          this._insertHTMLClosingTag(tagName, sel.end);
+        }
+      }
+
+      // Check if we should auto-close for multi-cursor
+      if (this._pendingMultiCursorClose) {
+        var openChar = this._pendingMultiCursorClose.openChar;
+        this._pendingMultiCursorClose = null;
+
+        this._insertClosingCharAtAllCursors(openChar);
+        return;
+      }
+
+      // Check if we should auto-close after this input (single cursor)
+      if (this._lastInsertedPair) {
+        var pairOpenChar = this._lastInsertedPair.openChar;
+        this._lastInsertedPair = null;
+
+        // Verify the character was actually inserted at expected position
+        var pairText = this._editor.getValue();
+        var pairSel = this._editor.getSelection();
+
+        if (pairText[pairSel.end - 1] === pairOpenChar) {
+          this._insertClosingChar(pairOpenChar, pairSel.end);
+        }
       }
     }
 
-    if (!allValid) return;
+    // ----------------------------------------
+    // Auto-Close Logic
+    // ----------------------------------------
 
-    // Get sorted selections (descending by offset) to insert from end to start
-    const sortedSels = selections.sorted(true);
+    _prepareAutoClose(openChar) {
+      var sel = this._editor.getSelection();
 
-    // Insert closing chars at each cursor position (from end to start to preserve offsets)
-    for (const sel of sortedSels) {
-      this._editor.document.replaceRange(sel.end, sel.end, closeChar);
+      // Don't auto-close if there's a selection (text will be replaced)
+      if (sel.start !== sel.end) {
+        this._lastInsertedPair = null;
+        return;
+      }
+
+      var text = this._editor.getValue();
+      var charAfter = text[sel.end];
+
+      // Don't auto-close before alphanumeric characters
+      if (charAfter && NO_AUTOCLOSE_BEFORE.test(charAfter)) {
+        this._lastInsertedPair = null;
+        return;
+      }
+
+      // For quotes, check if we're inside a string
+      if (openChar === '"' || openChar === "'" || openChar === '`') {
+        var charBefore = text[sel.end - 1];
+
+        // Don't auto-close if previous char is alphanumeric (likely end of word)
+        if (charBefore && /[\w]/.test(charBefore)) {
+          this._lastInsertedPair = null;
+          return;
+        }
+      }
+
+      // Mark for auto-close
+      this._lastInsertedPair = {
+        openChar: openChar,
+        position: sel.end,
+      };
     }
 
-    // Cursors should stay in place (between open and close chars)
-    // We need to account for the closing chars we inserted BEFORE each cursor
-    // Since we inserted from end to start, cursors at lower offsets need adjustment
-    const originalSels = selections.sorted(false); // ascending order
-    const newSelections = [];
+    _insertClosingChar(openChar, currentPos) {
+      var closeChar = PAIRS[openChar];
 
-    for (let i = 0; i < originalSels.length; i++) {
-      const sel = originalSels[i];
-      // Each cursor position needs to be offset by the number of closing chars
-      // inserted BEFORE it (i.e., at lower positions)
-      // Since originalSels is sorted ascending, cursors 0..i-1 are before cursor i
-      const adjustment = i; // i closing chars were inserted before this cursor
-      newSelections.push(Selection.cursor(sel.end + adjustment));
+      // Insert closing character
+      this._editor.document.replaceRange(currentPos, currentPos, closeChar);
+
+      // Move cursor back between the pair
+      this._editor.setSelection(currentPos, currentPos);
     }
 
-    this._editor.setSelections(newSelections);
-  }
+    /**
+     * Prepare multi-cursor auto-close
+     * @param {string} openChar - Opening character
+     */
+    _prepareMultiCursorAutoClose(openChar) {
+      var text = this._editor.getValue();
+      var selections = this._editor.getSelections();
 
-  // ----------------------------------------
-  // HTML Tag Auto-Close Logic
-  // ----------------------------------------
+      // Check if all cursors should auto-close
+      var shouldAutoClose = true;
 
-  /**
-   * Prepare to auto-close an HTML tag when '>' is typed
-   */
-  _prepareHTMLTagClose() {
-    const { start, end } = this._editor.getSelection();
+      for (var i = 0; i < selections.all.length; i++) {
+        var sel = selections.all[i];
+        // Don't auto-close if there's a selection
+        if (!sel.isEmpty) {
+          shouldAutoClose = false;
+          break;
+        }
 
-    // Only handle when no selection
-    if (start !== end) {
-      this._pendingHTMLTagClose = null;
-      return;
+        var charAfter = text[sel.end];
+
+        // Don't auto-close before alphanumeric characters
+        if (charAfter && NO_AUTOCLOSE_BEFORE.test(charAfter)) {
+          shouldAutoClose = false;
+          break;
+        }
+
+        // For quotes, check context
+        if (openChar === '"' || openChar === "'" || openChar === '`') {
+          var charBefore = text[sel.end - 1];
+
+          // Don't auto-close if previous char is alphanumeric
+          if (charBefore && /[\w]/.test(charBefore)) {
+            shouldAutoClose = false;
+            break;
+          }
+        }
+      }
+
+      if (shouldAutoClose) {
+        this._pendingMultiCursorClose = { openChar: openChar };
+      } else {
+        this._pendingMultiCursorClose = null;
+      }
     }
 
-    const text = this._editor.getValue();
-    const beforeCursor = text.slice(0, end);
-    const afterCursor = text.slice(end);
+    /**
+     * Insert closing character at all cursor positions
+     * @param {string} openChar - Opening character
+     */
+    _insertClosingCharAtAllCursors(openChar) {
+      var closeChar = PAIRS[openChar];
+      var text = this._editor.getValue();
+      var selections = this._editor.getSelections();
 
-    // Find the last unclosed < tag
-    // Pattern: <tagname or <tagname attributes (not already closed with > or />)
-    const tagMatch = beforeCursor.match(/<(\w+)(?:\s+[^>]*)?$/);
+      // Verify all cursors have the opening char before them
+      var allValid = true;
+      for (var i = 0; i < selections.all.length; i++) {
+        var sel = selections.all[i];
+        if (text[sel.end - 1] !== openChar) {
+          allValid = false;
+          break;
+        }
+      }
 
-    if (tagMatch) {
-      const tagName = tagMatch[1].toLowerCase();
+      if (!allValid) return;
 
-      // Don't auto-close void elements
-      if (HTML_VOID_ELEMENTS.has(tagName)) {
+      // Get sorted selections (descending by offset) to insert from end to start
+      var sortedSels = selections.sorted(true);
+
+      // Insert closing chars at each cursor position (from end to start to preserve offsets)
+      for (var j = 0; j < sortedSels.length; j++) {
+        this._editor.document.replaceRange(sortedSels[j].end, sortedSels[j].end, closeChar);
+      }
+
+      // Cursors should stay in place (between open and close chars)
+      // We need to account for the closing chars we inserted BEFORE each cursor
+      // Since we inserted from end to start, cursors at lower offsets need adjustment
+      var originalSels = selections.sorted(false); // ascending order
+      var newSelections = [];
+
+      for (var k = 0; k < originalSels.length; k++) {
+        var origSel = originalSels[k];
+        // Each cursor position needs to be offset by the number of closing chars
+        // inserted BEFORE it (i.e., at lower positions)
+        // Since originalSels is sorted ascending, cursors 0..k-1 are before cursor k
+        var adjustment = k; // k closing chars were inserted before this cursor
+        newSelections.push(Selection.cursor(origSel.end + adjustment));
+      }
+
+      this._editor.setSelections(newSelections);
+    }
+
+    // ----------------------------------------
+    // HTML Tag Auto-Close Logic
+    // ----------------------------------------
+
+    /**
+     * Prepare to auto-close an HTML tag when '>' is typed
+     */
+    _prepareHTMLTagClose() {
+      var sel = this._editor.getSelection();
+
+      // Only handle when no selection
+      if (sel.start !== sel.end) {
         this._pendingHTMLTagClose = null;
         return;
       }
 
-      // Don't auto-close if it's a closing tag </tag
-      if (beforeCursor.match(/<\/\w*$/)) {
-        this._pendingHTMLTagClose = null;
-        return;
-      }
+      var text = this._editor.getValue();
+      var beforeCursor = text.slice(0, sel.end);
+      var afterCursor = text.slice(sel.end);
 
-      // Don't auto-close if there's already a closing tag right after cursor
-      // This handles autocomplete inserting the full tag
-      const closingTagPattern = new RegExp(`^</${tagName}>`, 'i');
+      // Find the last unclosed < tag
+      // Pattern: <tagname or <tagname attributes (not already closed with > or />)
+      var tagMatch = beforeCursor.match(/<(\w+)(?:\s+[^>]*)?$/);
+
+      if (tagMatch) {
+        var tagName = tagMatch[1].toLowerCase();
+
+        // Don't auto-close void elements
+        if (HTML_VOID_ELEMENTS.has(tagName)) {
+          this._pendingHTMLTagClose = null;
+          return;
+        }
+
+        // Don't auto-close if it's a closing tag </tag
+        if (beforeCursor.match(/<\/\w*$/)) {
+          this._pendingHTMLTagClose = null;
+          return;
+        }
+
+        // Don't auto-close if there's already a closing tag right after cursor
+        // This handles autocomplete inserting the full tag
+        var closingTagPattern = new RegExp('^</' + tagName + '>', 'i');
+        if (closingTagPattern.test(afterCursor)) {
+          this._pendingHTMLTagClose = null;
+          return;
+        }
+
+        this._pendingHTMLTagClose = tagName;
+      } else {
+        this._pendingHTMLTagClose = null;
+      }
+    }
+
+    /**
+     * Insert the closing HTML tag
+     */
+    _insertHTMLClosingTag(tagName, currentPos) {
+      var text = this._editor.getValue();
+      var afterCursor = text.slice(currentPos);
+
+      // Double-check: Don't insert if closing tag already exists
+      var closingTagPattern = new RegExp('^</' + tagName + '>', 'i');
       if (closingTagPattern.test(afterCursor)) {
-        this._pendingHTMLTagClose = null;
         return;
       }
 
-      this._pendingHTMLTagClose = tagName;
-    } else {
-      this._pendingHTMLTagClose = null;
-    }
-  }
+      var closingTag = '</' + tagName + '>';
 
-  /**
-   * Insert the closing HTML tag
-   */
-  _insertHTMLClosingTag(tagName, currentPos) {
-    const text = this._editor.getValue();
-    const afterCursor = text.slice(currentPos);
+      // Insert closing tag
+      this._editor.document.replaceRange(currentPos, currentPos, closingTag);
 
-    // Double-check: Don't insert if closing tag already exists
-    const closingTagPattern = new RegExp(`^</${tagName}>`, 'i');
-    if (closingTagPattern.test(afterCursor)) {
-      return;
+      // Keep cursor between opening and closing tags
+      this._editor.setSelection(currentPos, currentPos);
     }
 
-    const closingTag = `</${tagName}>`;
+    // ----------------------------------------
+    // Skip-Over Logic
+    // ----------------------------------------
 
-    // Insert closing tag
-    this._editor.document.replaceRange(currentPos, currentPos, closingTag);
+    _handleSkipOver(closeChar, event) {
+      // Handle multi-cursor skip-over
+      if (this._editor.hasMultipleCursors()) {
+        return this._handleMultiCursorSkipOver(closeChar, event);
+      }
 
-    // Keep cursor between opening and closing tags
-    this._editor.setSelection(currentPos, currentPos);
-  }
+      var sel = this._editor.getSelection();
 
-  // ----------------------------------------
-  // Skip-Over Logic
-  // ----------------------------------------
+      // Only handle when no selection (cursor position)
+      if (sel.start !== sel.end) return false;
 
-  _handleSkipOver(closeChar, event) {
-    // Handle multi-cursor skip-over
-    if (this._editor.hasMultipleCursors()) {
-      return this._handleMultiCursorSkipOver(closeChar, event);
+      var text = this._editor.getValue();
+      var charAtCursor = text[sel.end];
+
+      // If the character at cursor matches what we're typing, skip over it
+      if (charAtCursor === closeChar) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        // Move cursor forward
+        this._editor.setSelection(sel.end + 1, sel.end + 1);
+        return true;
+      }
+
+      return false;
     }
 
-    const { start, end } = this._editor.getSelection();
+    /**
+     * Handle skip-over for multi-cursor mode
+     */
+    _handleMultiCursorSkipOver(closeChar, event) {
+      var text = this._editor.getValue();
+      var selections = this._editor.getSelections();
 
-    // Only handle when no selection (cursor position)
-    if (start !== end) return false;
+      // Check if ALL cursors can skip over
+      var allCanSkip = true;
+      for (var i = 0; i < selections.all.length; i++) {
+        var sel = selections.all[i];
+        if (!sel.isEmpty) {
+          allCanSkip = false;
+          break;
+        }
+        if (text[sel.end] !== closeChar) {
+          allCanSkip = false;
+          break;
+        }
+      }
 
-    const text = this._editor.getValue();
-    const charAtCursor = text[end];
+      if (!allCanSkip) return false;
 
-    // If the character at cursor matches what we're typing, skip over it
-    if (charAtCursor === closeChar) {
       event.preventDefault();
       event.stopPropagation();
 
-      // Move cursor forward
-      this._editor.setSelection(end + 1, end + 1);
+      // Move all cursors forward
+      this._editor.moveAllCursors('right', false, false);
       return true;
     }
 
-    return false;
-  }
+    // ----------------------------------------
+    // Pair Deletion Logic
+    // ----------------------------------------
 
-  /**
-   * Handle skip-over for multi-cursor mode
-   */
-  _handleMultiCursorSkipOver(closeChar, event) {
-    const text = this._editor.getValue();
-    const selections = this._editor.getSelections();
+    _handleBackspace(event) {
+      // Handle multi-cursor pair deletion
+      if (this._editor.hasMultipleCursors()) {
+        return this._handleMultiCursorBackspace(event);
+      }
 
-    // Check if ALL cursors can skip over
-    let allCanSkip = true;
-    for (const sel of selections.all) {
-      if (!sel.isEmpty) {
-        allCanSkip = false;
-        break;
+      var sel = this._editor.getSelection();
+
+      // Only handle when no selection
+      if (sel.start !== sel.end) return false;
+      if (sel.start === 0) return false;
+
+      var text = this._editor.getValue();
+      var charBefore = text[sel.start - 1];
+      var charAfter = text[sel.start];
+
+      // Check if we have an empty pair: (|) or [|] or {|} etc.
+      if (PAIRS[charBefore] === charAfter) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        // Delete both characters
+        this._editor.document.replaceRange(sel.start - 1, sel.start + 1, '');
+        this._editor.setSelection(sel.start - 1, sel.start - 1);
+        return true;
       }
-      if (text[sel.end] !== closeChar) {
-        allCanSkip = false;
-        break;
-      }
+
+      return false;
     }
 
-    if (!allCanSkip) return false;
+    /**
+     * Handle pair deletion for multi-cursor mode
+     */
+    _handleMultiCursorBackspace(event) {
+      var text = this._editor.getValue();
+      var selections = this._editor.getSelections();
 
-    event.preventDefault();
-    event.stopPropagation();
+      // Check if ALL cursors are in an empty pair
+      var allInPair = true;
+      for (var i = 0; i < selections.all.length; i++) {
+        var sel = selections.all[i];
+        if (!sel.isEmpty || sel.start === 0) {
+          allInPair = false;
+          break;
+        }
 
-    // Move all cursors forward
-    this._editor.moveAllCursors('right', false, false);
-    return true;
-  }
+        var charBefore = text[sel.start - 1];
+        var charAfter = text[sel.start];
 
-  // ----------------------------------------
-  // Pair Deletion Logic
-  // ----------------------------------------
+        if (PAIRS[charBefore] !== charAfter) {
+          allInPair = false;
+          break;
+        }
+      }
 
-  _handleBackspace(event) {
-    // Handle multi-cursor pair deletion
-    if (this._editor.hasMultipleCursors()) {
-      return this._handleMultiCursorBackspace(event);
-    }
+      if (!allInPair) return false;
 
-    const { start, end } = this._editor.getSelection();
-
-    // Only handle when no selection
-    if (start !== end) return false;
-    if (start === 0) return false;
-
-    const text = this._editor.getValue();
-    const charBefore = text[start - 1];
-    const charAfter = text[start];
-
-    // Check if we have an empty pair: (|) or [|] or {|} etc.
-    if (PAIRS[charBefore] === charAfter) {
       event.preventDefault();
       event.stopPropagation();
 
-      // Delete both characters
-      this._editor.document.replaceRange(start - 1, start + 1, '');
-      this._editor.setSelection(start - 1, start - 1);
+      // Delete pairs at all cursor positions (from end to start)
+      var sortedSels = selections.sorted(true);
+
+      for (var j = 0; j < sortedSels.length; j++) {
+        this._editor.document.replaceRange(sortedSels[j].start - 1, sortedSels[j].start + 1, '');
+      }
+
+      // Update cursor positions
+      var originalSels = selections.sorted(false);
+      var newSelections = [];
+      var cumulativeOffset = 0;
+
+      for (var k = 0; k < originalSels.length; k++) {
+        var origSel = originalSels[k];
+        var newPos = origSel.start - 1 + cumulativeOffset;
+        newSelections.push(Selection.cursor(Math.max(0, newPos)));
+        cumulativeOffset -= 2; // Removed 2 chars (pair)
+      }
+
+      this._editor.setSelections(newSelections);
       return true;
     }
 
-    return false;
-  }
+    // ----------------------------------------
+    // Public API
+    // ----------------------------------------
 
-  /**
-   * Handle pair deletion for multi-cursor mode
-   */
-  _handleMultiCursorBackspace(event) {
-    const text = this._editor.getValue();
-    const selections = this._editor.getSelections();
+    /**
+     * Enable auto-close feature
+     */
+    enable() {
+      this._enabled = true;
+    }
 
-    // Check if ALL cursors are in an empty pair
-    let allInPair = true;
-    for (const sel of selections.all) {
-      if (!sel.isEmpty || sel.start === 0) {
-        allInPair = false;
-        break;
+    /**
+     * Disable auto-close feature
+     */
+    disable() {
+      this._enabled = false;
+    }
+
+    /**
+     * Check if auto-close is enabled
+     * @returns {boolean}
+     */
+    isEnabled() {
+      return this._enabled;
+    }
+
+    /**
+     * Clean up resources
+     */
+    dispose() {
+      if (this._boundHandleKeyDown) {
+        this._editor.view.contentElement.removeEventListener(
+          'keydown',
+          this._boundHandleKeyDown,
+          true
+        );
       }
 
-      const charBefore = text[sel.start - 1];
-      const charAfter = text[sel.start];
-
-      if (PAIRS[charBefore] !== charAfter) {
-        allInPair = false;
-        break;
+      if (this._boundHandleInput) {
+        this._editor.off('input', this._boundHandleInput);
       }
+
+      this._editor = null;
     }
-
-    if (!allInPair) return false;
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    // Delete pairs at all cursor positions (from end to start)
-    const sortedSels = selections.sorted(true);
-
-    for (const sel of sortedSels) {
-      this._editor.document.replaceRange(sel.start - 1, sel.start + 1, '');
-    }
-
-    // Update cursor positions
-    const originalSels = selections.sorted(false);
-    const newSelections = [];
-    let cumulativeOffset = 0;
-
-    for (const sel of originalSels) {
-      const newPos = sel.start - 1 + cumulativeOffset;
-      newSelections.push(Selection.cursor(Math.max(0, newPos)));
-      cumulativeOffset -= 2; // Removed 2 chars (pair)
-    }
-
-    this._editor.setSelections(newSelections);
-    return true;
   }
 
-  // ----------------------------------------
-  // Public API
-  // ----------------------------------------
+  // ============================================
+  // Export to namespace
+  // ============================================
 
-  /**
-   * Enable auto-close feature
-   */
-  enable() {
-    this._enabled = true;
-  }
+  CodeEditor.Features = CodeEditor.Features || {};
+  CodeEditor.Features.AutoClose = AutoCloseFeature;
 
-  /**
-   * Disable auto-close feature
-   */
-  disable() {
-    this._enabled = false;
-  }
-
-  /**
-   * Check if auto-close is enabled
-   * @returns {boolean}
-   */
-  isEnabled() {
-    return this._enabled;
-  }
-
-  /**
-   * Clean up resources
-   */
-  dispose() {
-    if (this._boundHandleKeyDown) {
-      this._editor.view.contentElement.removeEventListener(
-        'keydown',
-        this._boundHandleKeyDown,
-        true
-      );
-    }
-
-    if (this._boundHandleInput) {
-      this._editor.off('input', this._boundHandleInput);
-    }
-
-    this._editor = null;
-  }
-}
+})(window.CodeEditor = window.CodeEditor || {});
