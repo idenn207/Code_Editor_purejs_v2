@@ -164,14 +164,23 @@
   <!-- Phase 7: Core Editor -->
   <script src="src/core/Editor.js"></script>
 
-  <!-- Phase 8: Feature Support Classes -->
+  <!-- Phase 8: Analysis Layer (for intelligent completions) -->
+  <script src="src/analysis/BuiltinTypes.js"></script>
+  <script src="src/analysis/SymbolTable.js"></script>
+  <script src="src/analysis/JSParser.js"></script>
+  <script src="src/analysis/ScopeAnalyzer.js"></script>
+  <script src="src/analysis/TypeInferenceEngine.js"></script>
+  <script src="src/analysis/ImportResolver.js"></script>
+
+  <!-- Phase 9: Feature Support Classes -->
+  <script src="src/features/autocomplete/IntelligentCompletionProvider.js"></script>
   <script src="src/features/autocomplete/CompletionService.js"></script>
   <script src="src/features/autocomplete/AutocompleteWidget.js"></script>
   <script src="src/features/search/SearchService.js"></script>
   <script src="src/features/search/SearchWidget.js"></script>
   <script src="src/features/search/SearchDecorations.js"></script>
 
-  <!-- Phase 9: Features -->
+  <!-- Phase 10: Features -->
   <script src="src/features/autoClose/AutoCloseFeature.js"></script>
   <script src="src/features/autoIndent/AutoIndentFeature.js"></script>
   <script src="src/features/bracketMatch/BracketMatchFeature.js"></script>
@@ -180,15 +189,15 @@
   <script src="src/features/autocomplete/AutocompleteFeature.js"></script>
   <script src="src/features/search/SearchFeature.js"></script>
 
-  <!-- Phase 10: IDE Models -->
+  <!-- Phase 11: IDE Models -->
   <script src="src/model/Tab.js"></script>
   <script src="src/model/FileNode.js"></script>
 
-  <!-- Phase 11: IDE Services -->
+  <!-- Phase 12: IDE Services -->
   <script src="src/services/FileService.js"></script>
   <script src="src/services/WorkspaceService.js"></script>
 
-  <!-- Phase 12: IDE UI Components (no internal deps) -->
+  <!-- Phase 13: IDE UI Components (no internal deps) -->
   <script src="src/ide/ActivityBar.js"></script>
   <script src="src/ide/Sidebar.js"></script>
   <script src="src/ide/StatusBar.js"></script>

@@ -69,7 +69,7 @@
       this._enabled = options.enabled !== false;
 
       // Initialize components
-      this._service = new CompletionService();
+      this._service = new CompletionService(editor);
       this._widget = new AutocompleteWidget(editor, {
         onSelect: function(item, cursorOffset) {
           self._handleSelect(item, cursorOffset);
@@ -370,6 +370,7 @@
         lineText: lineText,
         column: column,
         fullText: fullText,
+        cursorOffset: cursorOffset,
       });
 
       if (items.length === 0) {
@@ -421,6 +422,7 @@
         lineText: lineText,
         column: column,
         fullText: fullText,
+        cursorOffset: cursorOffset,
       });
 
       if (items.length === 0) {

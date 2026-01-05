@@ -260,6 +260,19 @@
         li.className = 'ec-autocomplete-item';
         li.dataset.index = index;
 
+        // Add icon based on kind
+        var kind = self._getKind(item);
+        if (kind) {
+          var iconSpan = document.createElement('span');
+          iconSpan.className = 'ec-autocomplete-icon ec-autocomplete-icon-' + kind;
+          iconSpan.textContent = self._getIconChar(kind);
+          li.appendChild(iconSpan);
+        }
+
+        // Add label with prefix highlighting
+        var labelContainer = document.createElement('span');
+        labelContainer.className = 'ec-autocomplete-label';
+
         var label = self._getLabel(item);
         var prefix = self._currentPrefix;
 
@@ -271,10 +284,30 @@
           var restSpan = document.createElement('span');
           restSpan.textContent = label.slice(prefix.length);
 
-          li.appendChild(matchSpan);
-          li.appendChild(restSpan);
+          labelContainer.appendChild(matchSpan);
+          labelContainer.appendChild(restSpan);
         } else {
-          li.textContent = label;
+          labelContainer.textContent = label;
+        }
+
+        li.appendChild(labelContainer);
+
+        // Add type annotation
+        var typeInfo = self._getTypeInfo(item);
+        if (typeInfo) {
+          var typeSpan = document.createElement('span');
+          typeSpan.className = 'ec-autocomplete-type';
+
+          // Check if type is unknown/any
+          var isUnknown = self._isUnknown(item);
+          if (isUnknown) {
+            typeSpan.classList.add('ec-autocomplete-type-unknown');
+            typeSpan.textContent = '?' + typeInfo;
+          } else {
+            typeSpan.textContent = typeInfo;
+          }
+
+          li.appendChild(typeSpan);
         }
 
         if (index === self._selectedIndex) {
@@ -285,6 +318,34 @@
       });
 
       this._scrollToSelected();
+    }
+
+    _getKind(item) {
+      if (typeof item === 'string') return null;
+      return item.kind || null;
+    }
+
+    _getTypeInfo(item) {
+      if (typeof item === 'string') return null;
+      return item.typeInfo || null;
+    }
+
+    _isUnknown(item) {
+      if (typeof item === 'string') return false;
+      return item.isUnknown === true;
+    }
+
+    _getIconChar(kind) {
+      switch (kind) {
+        case 'property': return 'P';
+        case 'method': return 'M';
+        case 'function': return 'F';
+        case 'variable': return 'V';
+        case 'class': return 'C';
+        case 'keyword': return 'K';
+        case 'parameter': return 'p';
+        default: return '';
+      }
     }
 
     _positionWidget(cursorRect) {

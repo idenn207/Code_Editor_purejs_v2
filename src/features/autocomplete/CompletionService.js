@@ -11,6 +11,9 @@
   var HTMLData = CompletionData.HTML || {};
   var CSSData = CompletionData.CSS || {};
 
+  // Get intelligent completion provider (may not be loaded yet)
+  var IntelligentCompletionProvider = null;
+
   // JavaScript completions (using correct property names from js-completions.js)
   var JS_KEYWORDS = JSData.keywords || [];
   var JS_GLOBALS = JSData.globals || [];
@@ -49,6 +52,47 @@
 
   class CompletionService {
     // ----------------------------------------
+    // Instance Properties
+    // ----------------------------------------
+
+    _editor = null;
+    _intelligentProvider = null;
+    _useIntelligentCompletions = true;
+
+    // ----------------------------------------
+    // Constructor
+    // ----------------------------------------
+
+    /**
+     * @param {Object} editor - Optional editor instance for intelligent completions
+     */
+    constructor(editor) {
+      this._editor = editor || null;
+      this._initIntelligentProvider();
+    }
+
+    _initIntelligentProvider() {
+      // Try to initialize intelligent provider if editor is available
+      if (this._editor && CodeEditor.IntelligentCompletionProvider) {
+        try {
+          this._intelligentProvider = new CodeEditor.IntelligentCompletionProvider(this._editor);
+        } catch (e) {
+          console.warn('Failed to initialize IntelligentCompletionProvider:', e);
+          this._intelligentProvider = null;
+        }
+      }
+    }
+
+    /**
+     * Set the editor instance (for late binding)
+     * @param {Object} editor - Editor instance
+     */
+    setEditor(editor) {
+      this._editor = editor;
+      this._initIntelligentProvider();
+    }
+
+    // ----------------------------------------
     // Public Methods
     // ----------------------------------------
 
@@ -56,7 +100,7 @@
      * Get completions for the current context
      * @param {string} language - Current language (javascript, html, css)
      * @param {Object} context - Completion context
-     * @returns {string[]} Array of completion labels
+     * @returns {Array} Array of completion items
      */
     getCompletions(language, context) {
       var prefix = context.prefix;
@@ -67,7 +111,7 @@
 
       switch (language) {
         case 'javascript':
-          items = this._getJavaScriptCompletions(lineText, column, prefix, context.fullText);
+          items = this._getJavaScriptCompletions(lineText, column, prefix, context.fullText, context);
           break;
         case 'html':
           items = this._getHTMLCompletions(lineText, column, prefix);
@@ -76,7 +120,7 @@
           items = this._getCSSCompletions(lineText, column, prefix);
           break;
         default:
-          items = this._getJavaScriptCompletions(lineText, column, prefix, context.fullText);
+          items = this._getJavaScriptCompletions(lineText, column, prefix, context.fullText, context);
       }
 
       return this._filterAndSort(items, prefix);
@@ -86,9 +130,30 @@
     // JavaScript Completions
     // ----------------------------------------
 
-    _getJavaScriptCompletions(lineText, column, prefix, fullText) {
+    _getJavaScriptCompletions(lineText, column, prefix, fullText, context) {
       if (!fullText) fullText = '';
       var beforeCursor = lineText.slice(0, column);
+
+      // Try intelligent completions first if available
+      if (this._useIntelligentCompletions && this._intelligentProvider && context) {
+        var intelligentContext = {
+          lineText: lineText,
+          column: column,
+          prefix: prefix,
+          cursorOffset: context.cursorOffset || 0
+        };
+
+        // Check if intelligent provider can handle this context
+        if (this._intelligentProvider.hasIntelligentCompletions(intelligentContext)) {
+          var intelligentItems = this._intelligentProvider.getCompletions(intelligentContext);
+
+          if (intelligentItems && intelligentItems.length > 0) {
+            return intelligentItems;
+          }
+        }
+      }
+
+      // Fall back to pattern-based completions
 
       // Check for multi-level dot notation
       var multiDotMatch = beforeCursor.match(/([\w$]+(?:\.[\w$]+)*)\.\s*([\w$]*)$/);
