@@ -18,6 +18,7 @@
   var IndentGuideFeature = CodeEditor.Features.IndentGuide;
   var SearchFeature = CodeEditor.Features.Search;
   var MultiCursorFeature = CodeEditor.Features.MultiCursor;
+  var LineOperationsFeature = CodeEditor.Features.LineOperations;
 
   class EditorArea {
     // ============================================
@@ -279,6 +280,9 @@
 
       // Multi-cursor
       this._features.multiCursor = new MultiCursorFeature(this._editor);
+
+      // Line operations (comment, move, duplicate)
+      this._features.lineOperations = new LineOperationsFeature(this._editor);
     }
 
     /**

@@ -16,6 +16,7 @@
   var IndentGuideFeature = CodeEditor.Features.IndentGuide;
   var MultiCursorFeature = CodeEditor.Features.MultiCursor;
   var SearchFeature = CodeEditor.Features.Search;
+  var LineOperationsFeature = CodeEditor.Features.LineOperations;
 
   // ============================================
   // Sample Code for Syntax Highlighting Demo
@@ -256,6 +257,9 @@
   // Enable Multi-Cursor feature
   var multiCursor = new MultiCursorFeature(editor);
 
+  // Enable Line Operations feature (comment, move, duplicate)
+  var lineOperations = new LineOperationsFeature(editor);
+
   // UI Elements
   var inputModeEl = document.getElementById('input-mode');
   var ecSupportEl = document.getElementById('ec-support');
@@ -313,6 +317,7 @@
   window.indentGuide = indentGuide;
   window.multiCursor = multiCursor;
   window.search = search;
+  window.lineOperations = lineOperations;
 
   // Expose sample code for testing different languages
   window.SAMPLE_CODE_JS = SAMPLE_CODE_JS;
@@ -347,8 +352,10 @@
   console.log('IndentGuideFeature available as window.indentGuide');
   console.log('MultiCursorFeature available as window.multiCursor');
   console.log('SearchFeature available as window.search');
+  console.log('LineOperationsFeature available as window.lineOperations');
   console.log('');
   console.log('Search: Ctrl+F (find), Ctrl+H (replace)');
+  console.log('Line Operations: Ctrl+/ (toggle comment), Alt+Up/Down (move line), Alt+Shift+Up/Down (duplicate line)');
   console.log('Autocomplete: Ctrl+Space (trigger), Arrow keys (navigate), Enter/Tab (select)');
   console.log('Multi-Cursor: Alt+Click (add cursor), Ctrl+Alt+Up/Down (add cursor above/below), Ctrl+D (select next), Escape (collapse)');
   console.log('');
