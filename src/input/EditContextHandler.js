@@ -7,7 +7,7 @@
  * Browser Support: Chrome 121+, Edge 121+
  */
 
-(function(CodeEditor) {
+(function (CodeEditor) {
   'use strict';
 
   var Selection = CodeEditor.Selection;
@@ -97,48 +97,68 @@
       var ec = this._editContext;
 
       // Text update - fired when user inputs text
-      ec.addEventListener('textupdate', function(e) { self._handleTextUpdate(e); });
+      ec.addEventListener('textupdate', function (e) {
+        self._handleTextUpdate(e);
+      });
 
       // Text format update - fired during IME composition for styling
-      ec.addEventListener('textformatupdate', function(e) { self._handleTextFormatUpdate(e); });
+      ec.addEventListener('textformatupdate', function (e) {
+        self._handleTextFormatUpdate(e);
+      });
 
       // Character bounds update - OS needs character positions for IME window
-      ec.addEventListener('characterboundsupdate', function(e) { self._handleCharacterBoundsUpdate(e); });
+      ec.addEventListener('characterboundsupdate', function (e) {
+        self._handleCharacterBoundsUpdate(e);
+      });
 
       // Composition events
-      ec.addEventListener('compositionstart', function(e) { self._handleCompositionStart(e); });
-      ec.addEventListener('compositionend', function(e) { self._handleCompositionEnd(e); });
+      ec.addEventListener('compositionstart', function (e) {
+        self._handleCompositionStart(e);
+      });
+      ec.addEventListener('compositionend', function (e) {
+        self._handleCompositionEnd(e);
+      });
     }
 
     _bindElementEvents() {
       var self = this;
 
       // Focus management
-      this._element.addEventListener('focus', function() { self._handleFocus(); });
-      this._element.addEventListener('blur', function() { self._handleBlur(); });
+      this._element.addEventListener('focus', function () {
+        self._handleFocus();
+      });
+      this._element.addEventListener('blur', function () {
+        self._handleBlur();
+      });
 
       // Keyboard events (for non-text keys like arrows, shortcuts)
-      this._element.addEventListener('keydown', function(e) { self._handleKeyDown(e); });
+      this._element.addEventListener('keydown', function (e) {
+        self._handleKeyDown(e);
+      });
 
       // Mouse events for selection
-      this._element.addEventListener('mousedown', function(e) { self._handleMouseDown(e); });
+      this._element.addEventListener('mousedown', function (e) {
+        self._handleMouseDown(e);
+      });
 
       // Capture native browser selection changes (for mouse drag selection)
-      document.addEventListener('selectionchange', function() { self._handleSelectionChange(); });
+      document.addEventListener('selectionchange', function () {
+        self._handleSelectionChange();
+      });
     }
 
     _bindDocumentEvents() {
       var self = this;
 
       // Sync EditContext when document changes externally
-      this._editor.document.on('change', function(change) {
+      this._editor.document.on('change', function (change) {
         if (!self._isComposing) {
           self._syncEditContextText();
         }
       });
 
       // Sync EditContext selection when editor selection changes programmatically
-      this._editor.on('selectionChange', function() {
+      this._editor.on('selectionChange', function () {
         if (!self._isComposing) {
           self._syncEditContextSelection();
         }
@@ -150,29 +170,20 @@
     // ----------------------------------------
 
     _handleTextUpdate(event) {
-      var text = event.text;
-      var updateRangeStart = event.updateRangeStart;
-      var updateRangeEnd = event.updateRangeEnd;
+      const { text } = event;
 
-      // EditContext textupdate already specifies the range to replace
-      var doc = this._editor.document;
-
-      // Replace the specified range with the new text
-      doc.replaceRange(updateRangeStart, updateRangeEnd, text);
-
-      // Update cursor position to end of inserted text
-      var newPosition = updateRangeStart + text.length;
-      this._editor.setSelection(newPosition, newPosition);
+      // Use insertText for multi-cursor support
+      // insertText handles all cursors and updates selections properly
+      this._editor.insertText(text);
 
       // Sync EditContext with new state
       this._syncEditContextText();
       this._syncEditContextSelection();
 
       // Emit event for view update
-      this._editor._emit('input', {
+      this._editor.emit('input', {
         type: 'textupdate',
-        text: text,
-        range: { start: updateRangeStart, end: updateRangeEnd },
+        text,
       });
     }
 
@@ -180,7 +191,7 @@
       var self = this;
       var formats = event.getTextFormats();
 
-      this._compositionRanges = formats.map(function(format) {
+      this._compositionRanges = formats.map(function (format) {
         return {
           start: format.rangeStart,
           end: format.rangeEnd,
@@ -468,10 +479,16 @@
     _handleCopy() {
       if (this._editor.hasMultipleCursors()) {
         var texts = this._editor.getAllSelectedTexts();
-        var hasSelection = texts.some(function(t) { return t.length > 0; });
+        var hasSelection = texts.some(function (t) {
+          return t.length > 0;
+        });
 
         if (hasSelection) {
-          var combinedText = texts.filter(function(t) { return t.length > 0; }).join('\n');
+          var combinedText = texts
+            .filter(function (t) {
+              return t.length > 0;
+            })
+            .join('\n');
           navigator.clipboard.writeText(combinedText);
         }
         return;
@@ -487,10 +504,16 @@
     _handleCut() {
       if (this._editor.hasMultipleCursors()) {
         var texts = this._editor.getAllSelectedTexts();
-        var hasSelection = texts.some(function(t) { return t.length > 0; });
+        var hasSelection = texts.some(function (t) {
+          return t.length > 0;
+        });
 
         if (hasSelection) {
-          var combinedText = texts.filter(function(t) { return t.length > 0; }).join('\n');
+          var combinedText = texts
+            .filter(function (t) {
+              return t.length > 0;
+            })
+            .join('\n');
           navigator.clipboard.writeText(combinedText);
           this._editor.insertText('');
           this._syncEditContextText();
@@ -513,31 +536,34 @@
     _handlePaste() {
       var self = this;
 
-      navigator.clipboard.readText().then(function(text) {
-        if (self._editor.hasMultipleCursors()) {
-          var normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-          var lines = normalizedText.split('\n');
-          var selections = self._editor.getSelections();
+      navigator.clipboard
+        .readText()
+        .then(function (text) {
+          if (self._editor.hasMultipleCursors()) {
+            var normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            var lines = normalizedText.split('\n');
+            var selections = self._editor.getSelections();
 
-          if (lines.length === selections.count) {
-            self._smartPasteMultiCursor(lines, selections);
-          } else {
-            self._editor.insertText(text);
+            if (lines.length === selections.count) {
+              self._smartPasteMultiCursor(lines, selections);
+            } else {
+              self._editor.insertText(text);
+            }
+
+            self._syncEditContextText();
+            self._syncEditContextSelection();
+            return;
           }
 
+          var selection = self._editor.getSelection();
+          self._editor.document.replaceRange(selection.start, selection.end, text);
+          self._editor.setSelection(selection.start + text.length, selection.start + text.length);
           self._syncEditContextText();
           self._syncEditContextSelection();
-          return;
-        }
-
-        var selection = self._editor.getSelection();
-        self._editor.document.replaceRange(selection.start, selection.end, text);
-        self._editor.setSelection(selection.start + text.length, selection.start + text.length);
-        self._syncEditContextText();
-        self._syncEditContextSelection();
-      }).catch(function(err) {
-        console.error('Paste failed:', err);
-      });
+        })
+        .catch(function (err) {
+          console.error('Paste failed:', err);
+        });
     }
 
     _smartPasteMultiCursor(lines, selections) {
@@ -597,11 +623,7 @@
       var lineIndex = parseInt(lineElement.dataset.lineIndex);
       var columnOffset = 0;
 
-      var walker = document.createTreeWalker(
-        lineElement,
-        NodeFilter.SHOW_TEXT,
-        null
-      );
+      var walker = document.createTreeWalker(lineElement, NodeFilter.SHOW_TEXT, null);
 
       var currentNode;
       while ((currentNode = walker.nextNode())) {
@@ -614,11 +636,7 @@
       }
 
       if (node.nodeType === Node.ELEMENT_NODE && node.dataset && node.dataset.lineIndex !== undefined) {
-        var walker2 = document.createTreeWalker(
-          node,
-          NodeFilter.SHOW_TEXT,
-          null
-        );
+        var walker2 = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, null);
 
         columnOffset = 0;
         var childCount = 0;
@@ -731,5 +749,5 @@
 
   CodeEditor.EditContextHandler = EditContextHandler;
   CodeEditor.isEditContextSupported = isEditContextSupported;
+})((window.CodeEditor = window.CodeEditor || {}));
 
-})(window.CodeEditor = window.CodeEditor || {});
