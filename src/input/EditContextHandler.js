@@ -181,7 +181,7 @@
       this._syncEditContextSelection();
 
       // Emit event for view update
-      this._editor.emit('input', {
+      this._editor._emit('input', {
         type: 'textupdate',
         text,
       });
