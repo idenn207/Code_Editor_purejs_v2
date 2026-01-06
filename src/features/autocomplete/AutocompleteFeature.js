@@ -47,6 +47,7 @@
     _currentPrefix = '';
     _htmlContext = null; // HTML-specific context ('tag', etc.)
     _cachedItems = null; // Cached completion items for filtering
+    _isDotTrigger = false; // Whether completion was triggered by dot (allows empty prefix)
 
     // Bound event handlers
     _boundHandleKeyDown = null;
@@ -176,8 +177,9 @@
       // Check if this is an insertion event (textupdate from EditContext, input from Textarea)
       var isInsert = type === 'textupdate' || type === 'input';
 
-      // Check if this is a deletion (range.start < range.end with empty or shorter text)
-      var isDelete = isInsert && range && range.end > range.start && (!text || text.length < range.end - range.start);
+      // Check if this is a deletion event
+      var isDelete = type === 'delete' ||
+                     (isInsert && range && range.end > range.start && (!text || text.length < range.end - range.start));
 
       // Handle character input
       if (isInsert && text && text.length > 0 && !isDelete) {
@@ -450,6 +452,7 @@
         this._htmlContext = null;
       }
       this._currentPrefix = prefix;
+      this._isDotTrigger = !!isDotTrigger;
 
       // Get completions
       var language = this._editor.getLanguage();
@@ -498,6 +501,12 @@
       var column = context.column;
       var cursorOffset = context.cursorOffset;
 
+      // Hide if prefix too short (unless dot trigger which allows empty prefix)
+      if (prefix.length < MIN_PREFIX_LENGTH && !this._isDotTrigger) {
+        this._widget.hide();
+        return;
+      }
+
       // Check if cursor is still after trigger position
       if (cursorOffset < this._triggerPosition) {
         this._widget.hide();
@@ -527,7 +536,9 @@
         return;
       }
 
-      this._widget.updateItems(items, prefix);
+      // Update items and reposition widget to follow cursor
+      var cursorRect = this._editor.view.getCursorRect();
+      this._widget.show(items, cursorRect, prefix);
     }
 
     _getCompletionContext() {
@@ -638,6 +649,7 @@
       this._currentPrefix = '';
       this._htmlContext = null;
       this._cachedItems = null;
+      this._isDotTrigger = false;
 
       // Return focus to editor
       this._editor.focus();
@@ -648,6 +660,7 @@
       this._currentPrefix = '';
       this._htmlContext = null;
       this._cachedItems = null;
+      this._isDotTrigger = false;
       this._editor.focus();
     }
 

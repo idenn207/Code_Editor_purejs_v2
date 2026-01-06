@@ -421,6 +421,13 @@
         this._editor.setSelection(start, start);
         this._syncEditContextText();
         this._syncEditContextSelection();
+
+        // Emit input event for autocomplete to detect deletion
+        this._editor._emit('input', {
+          type: 'delete',
+          text: '',
+          deletedLength: end - start,
+        });
       }
     }
 
@@ -454,6 +461,13 @@
         this._editor.setSelection(start, start);
         this._syncEditContextText();
         this._syncEditContextSelection();
+
+        // Emit input event for autocomplete to detect deletion
+        this._editor._emit('input', {
+          type: 'delete',
+          text: '',
+          deletedLength: end - start,
+        });
       }
     }
 
