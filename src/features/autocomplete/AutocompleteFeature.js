@@ -38,6 +38,10 @@
     _service = null;
     _widget = null;
 
+    // Sorting options (VSCode-style)
+    _sortingOptions = null;
+    _recentSelections = null; // Map: label -> { label, time } for recent usage tracking
+
     // State
     _triggerPosition = null; // Position where completion was triggered
     _currentPrefix = '';
@@ -61,6 +65,12 @@
      * @param {Object} editor - Editor instance
      * @param {Object} options - Configuration options
      * @param {boolean} options.enabled - Whether feature is enabled (default: true)
+     * @param {boolean} options.caseSensitive - Prioritize case-sensitive matches (default: true)
+     * @param {boolean} options.localityBonus - Boost symbols closer to cursor (default: true)
+     * @param {boolean} options.recentlyUsed - Track and boost recent selections (default: true)
+     * @param {boolean} options.recentlyUsedByPrefix - Track by prefix instead of label (default: false)
+     * @param {boolean} options.camelCaseMatch - Support CamelCase/snake_case matching (default: true)
+     * @param {number} options.maxItems - Maximum completion items to show (default: 50)
      */
     constructor(editor, options = {}) {
       var self = this;
@@ -68,8 +78,21 @@
       this._editor = editor;
       this._enabled = options.enabled !== false;
 
-      // Initialize components
-      this._service = new CompletionService(editor);
+      // Initialize sorting options (VSCode-style, all enabled by default)
+      this._sortingOptions = {
+        caseSensitive: options.caseSensitive !== false,
+        localityBonus: options.localityBonus !== false,
+        recentlyUsed: options.recentlyUsed !== false,
+        recentlyUsedByPrefix: options.recentlyUsedByPrefix === true,
+        camelCaseMatch: options.camelCaseMatch !== false,
+        maxItems: options.maxItems || 50,
+      };
+
+      // Initialize recent selections tracking (session-only)
+      this._recentSelections = new Map();
+
+      // Initialize components with sorting options
+      this._service = new CompletionService(editor, this._sortingOptions);
       this._widget = new AutocompleteWidget(editor, {
         onSelect: function(item, cursorOffset) {
           self._handleSelect(item, cursorOffset);
@@ -305,20 +328,86 @@
     }
 
     /**
-     * Filter cached items by prefix
+     * Filter cached items by prefix (with VSCode-style matching)
      * @param {Array} items - Cached completion items
      * @param {string} prefix - Current prefix
      * @returns {Array} Filtered items
      */
     _filterCachedItems(items, prefix) {
-      if (!prefix) return items.slice(0, 50);
+      var self = this;
+      var maxItems = this._sortingOptions.maxItems || 50;
+
+      if (!prefix) return items.slice(0, maxItems);
 
       var lowerPrefix = prefix.toLowerCase();
       var filtered = items.filter(function(item) {
         var label = typeof item === 'string' ? item : item.label;
-        return label.toLowerCase().startsWith(lowerPrefix);
+        var lowerLabel = label.toLowerCase();
+
+        // Prefix match
+        if (lowerLabel.startsWith(lowerPrefix)) {
+          return true;
+        }
+
+        // CamelCase/snake_case match (if enabled)
+        if (self._sortingOptions.camelCaseMatch) {
+          if (self._matchesCamelCase(label, prefix)) {
+            return true;
+          }
+        }
+
+        return false;
       });
-      return filtered.slice(0, 30);
+
+      // Sort filtered items
+      filtered.sort(function(a, b) {
+        var aLabel = typeof a === 'string' ? a : a.label;
+        var bLabel = typeof b === 'string' ? b : b.label;
+
+        var aScore = self._calculateMatchScore(aLabel, prefix);
+        var bScore = self._calculateMatchScore(bLabel, prefix);
+        if (aScore !== bScore) return aScore - bScore;
+
+        return aLabel.localeCompare(bLabel);
+      });
+
+      return filtered.slice(0, maxItems);
+    }
+
+    /**
+     * Calculate match score for VSCode-style sorting (lower = better)
+     */
+    _calculateMatchScore(label, prefix) {
+      var lowerLabel = label.toLowerCase();
+      var lowerPrefix = prefix.toLowerCase();
+
+      if (label === prefix) return 0;
+      if (lowerLabel === lowerPrefix) return 1;
+      if (label.startsWith(prefix)) return 2;
+      if (lowerLabel.startsWith(lowerPrefix)) return 3;
+      if (this._sortingOptions.camelCaseMatch && this._matchesCamelCase(label, prefix)) return 4;
+      return 5;
+    }
+
+    /**
+     * Check if label matches prefix via CamelCase or snake_case initials
+     */
+    _matchesCamelCase(label, prefix) {
+      var lowerPrefix = prefix.toLowerCase();
+
+      // CamelCase: Extract initials (getValue -> gv)
+      var camelInitials = label.replace(/[^A-Z]/g, '').toLowerCase();
+      var camelFull = (label[0] + camelInitials).toLowerCase();
+      if (camelFull.startsWith(lowerPrefix)) return true;
+
+      // snake_case: Extract initials (get_value -> gv)
+      var snakeParts = label.split('_');
+      if (snakeParts.length > 1) {
+        var snakeInitials = snakeParts.map(function(p) { return p[0] || ''; }).join('').toLowerCase();
+        if (snakeInitials.startsWith(lowerPrefix)) return true;
+      }
+
+      return false;
     }
 
     // ----------------------------------------
@@ -365,12 +454,16 @@
       // Get completions
       var language = this._editor.getLanguage();
       var fullText = this._editor.getValue();
+      var pos = this._editor.document.offsetToPosition(cursorOffset);
       var items = this._service.getCompletions(language, {
         prefix: prefix,
         lineText: lineText,
         column: column,
         fullText: fullText,
         cursorOffset: cursorOffset,
+        cursorLine: pos.line,
+        recentSelections: this._recentSelections,
+        sortingOptions: this._sortingOptions,
       });
 
       if (items.length === 0) {
@@ -417,12 +510,16 @@
       // Get new completions
       var language = this._editor.getLanguage();
       var fullText = this._editor.getValue();
+      var pos = this._editor.document.offsetToPosition(cursorOffset);
       var items = this._service.getCompletions(language, {
         prefix: prefix,
         lineText: lineText,
         column: column,
         fullText: fullText,
         cursorOffset: cursorOffset,
+        cursorLine: pos.line,
+        recentSelections: this._recentSelections,
+        sortingOptions: this._sortingOptions,
       });
 
       if (items.length === 0) {
@@ -481,17 +578,42 @@
     _handleSelect(item, cursorOffset) {
       if (this._triggerPosition === null) return;
 
+      // Track recent selection for sorting boost
+      if (this._sortingOptions.recentlyUsed) {
+        var itemLabel = typeof item === 'string' ? item : item.label;
+        var key = this._sortingOptions.recentlyUsedByPrefix
+          ? this._currentPrefix.toLowerCase()
+          : itemLabel;
+        this._recentSelections.set(key, {
+          label: itemLabel,
+          time: Date.now(),
+        });
+
+        // Limit recent selections to prevent memory growth (keep last 100)
+        if (this._recentSelections.size > 100) {
+          var entries = Array.from(this._recentSelections.entries());
+          entries.sort(function(a, b) { return a[1].time - b[1].time; });
+          // Remove oldest 20
+          for (var i = 0; i < 20; i++) {
+            this._recentSelections.delete(entries[i][0]);
+          }
+        }
+      }
+
       var sel = this._editor.getSelection();
 
       // Calculate the range to replace (from trigger position to cursor)
       var replaceStart = this._triggerPosition;
       var replaceEnd = sel.end;
 
+      // Get the text to insert
+      var insertText = typeof item === 'string' ? item : (item.insertText || item.label);
+
       // Replace the prefix with the selected completion
-      this._editor.document.replaceRange(replaceStart, replaceEnd, item);
+      this._editor.document.replaceRange(replaceStart, replaceEnd, insertText);
 
       // Calculate cursor position
-      var newPosition = replaceStart + item.length;
+      var newPosition = replaceStart + insertText.length;
 
       // If cursorOffset is provided, use it (e.g., CSS properties with ": ;")
       if (cursorOffset !== null) {
@@ -501,7 +623,7 @@
       // Pattern: <tagname></tagname> - cursor goes after <tagname>
       // Check the pattern regardless of _htmlContext since tags can be completed without '<'
       else {
-        var closingTagMatch = item.match(/^<(\w+)><\/\1>$/);
+        var closingTagMatch = insertText.match(/^<(\w+)><\/\1>$/);
         if (closingTagMatch) {
           // Position cursor after "<tagname>": <div>|</div>
           // "<" + tagname + ">" = 1 + tagname.length + 1
@@ -610,6 +732,8 @@
       }
       this._service = null;
       this._cachedItems = null;
+      this._recentSelections = null;
+      this._sortingOptions = null;
       this._editor = null;
     }
   }

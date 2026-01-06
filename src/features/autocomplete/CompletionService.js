@@ -58,6 +58,7 @@
     _editor = null;
     _intelligentProvider = null;
     _useIntelligentCompletions = true;
+    _sortingOptions = null;
 
     // ----------------------------------------
     // Constructor
@@ -65,9 +66,11 @@
 
     /**
      * @param {Object} editor - Optional editor instance for intelligent completions
+     * @param {Object} sortingOptions - VSCode-style sorting options
      */
-    constructor(editor) {
+    constructor(editor, sortingOptions) {
       this._editor = editor || null;
+      this._sortingOptions = sortingOptions || {};
       this._initIntelligentProvider();
     }
 
@@ -123,7 +126,7 @@
           items = this._getJavaScriptCompletions(lineText, column, prefix, context.fullText, context);
       }
 
-      return this._filterAndSort(items, prefix);
+      return this._filterAndSort(items, prefix, context);
     }
 
     // ----------------------------------------
@@ -557,12 +560,17 @@
     }
 
     // ----------------------------------------
-    // Filtering & Sorting
+    // Filtering & Sorting (VSCode-style)
     // ----------------------------------------
 
-    _filterAndSort(items, prefix) {
+    _filterAndSort(items, prefix, context) {
+      var self = this;
+      var maxItems = (this._sortingOptions && this._sortingOptions.maxItems) || 50;
+      var recentSelections = context && context.recentSelections;
+      var cursorLine = context && context.cursorLine;
+
       if (!prefix) {
-        return items.slice(0, 50);
+        return items.slice(0, maxItems);
       }
 
       var lowerPrefix = prefix.toLowerCase();
@@ -576,27 +584,106 @@
         return label.charAt(label.length - 1) === '(';
       };
 
+      // Filter items - include prefix matches and CamelCase/snake_case matches
       var filtered = items.filter(function(item) {
         var label = getLabel(item);
-        return label.toLowerCase().indexOf(lowerPrefix) === 0;
+        var lowerLabel = label.toLowerCase();
+
+        // Prefix match (case-insensitive)
+        if (lowerLabel.indexOf(lowerPrefix) === 0) {
+          return true;
+        }
+
+        // CamelCase/snake_case match
+        if (self._sortingOptions && self._sortingOptions.camelCaseMatch) {
+          if (self._matchesCamelCase(label, prefix)) {
+            return true;
+          }
+        }
+
+        return false;
       });
 
+      // Sort with VSCode-style algorithm
       filtered.sort(function(a, b) {
-        var aLabel = getLabel(a).toLowerCase();
-        var bLabel = getLabel(b).toLowerCase();
+        var aLabel = getLabel(a);
+        var bLabel = getLabel(b);
+
+        // 1. Calculate match score (case sensitivity)
+        var aScore = self._calculateMatchScore(aLabel, prefix);
+        var bScore = self._calculateMatchScore(bLabel, prefix);
+        if (aScore !== bScore) return aScore - bScore;
+
+        // 2. Recent usage (if enabled)
+        if (self._sortingOptions && self._sortingOptions.recentlyUsed && recentSelections) {
+          var aRecent = recentSelections.has(aLabel);
+          var bRecent = recentSelections.has(bLabel);
+          if (aRecent && !bRecent) return -1;
+          if (bRecent && !aRecent) return 1;
+        }
+
+        // 3. Non-functions before functions
         var aIsFunction = isFunction(a);
         var bIsFunction = isFunction(b);
-
-        if (aLabel === lowerPrefix && bLabel !== lowerPrefix && !aIsFunction) return -1;
-        if (bLabel === lowerPrefix && aLabel !== lowerPrefix && !bIsFunction) return 1;
-
         if (aIsFunction && !bIsFunction) return 1;
         if (!aIsFunction && bIsFunction) return -1;
 
+        // 4. Alphabetical
         return aLabel.localeCompare(bLabel);
       });
 
-      return filtered.slice(0, 30);
+      return filtered.slice(0, maxItems);
+    }
+
+    /**
+     * Calculate match score for VSCode-style sorting (lower = better)
+     * 0: exact case-sensitive match
+     * 1: exact case-insensitive match
+     * 2: prefix case-sensitive match
+     * 3: prefix case-insensitive match
+     * 4: CamelCase/snake_case match
+     * 5: no match
+     */
+    _calculateMatchScore(label, prefix) {
+      var lowerLabel = label.toLowerCase();
+      var lowerPrefix = prefix.toLowerCase();
+
+      // Exact matches
+      if (label === prefix) return 0;
+      if (lowerLabel === lowerPrefix) return 1;
+
+      // Prefix matches
+      if (label.startsWith(prefix)) return 2;
+      if (lowerLabel.startsWith(lowerPrefix)) return 3;
+
+      // CamelCase/snake_case matches
+      if (this._sortingOptions && this._sortingOptions.camelCaseMatch) {
+        if (this._matchesCamelCase(label, prefix)) return 4;
+      }
+
+      return 5;
+    }
+
+    /**
+     * Check if label matches prefix via CamelCase or snake_case initials
+     * "gv" matches "getValue" and "get_value"
+     */
+    _matchesCamelCase(label, prefix) {
+      var lowerPrefix = prefix.toLowerCase();
+
+      // CamelCase: Extract initials from camelCase (getValue -> gv)
+      var camelInitials = label.replace(/[^A-Z]/g, '').toLowerCase();
+      var camelFull = (label[0] + camelInitials).toLowerCase();
+      if (camelFull.startsWith(lowerPrefix)) return true;
+
+      // snake_case: Extract initials from snake_case (get_value -> gv)
+      var snakeParts = label.split('_');
+      if (snakeParts.length > 1) {
+        var snakeInitials = snakeParts.map(function(p) { return p[0] || ''; }).join('').toLowerCase();
+        if (snakeInitials.startsWith(lowerPrefix)) return true;
+      }
+
+      return false;
     }
   }
 

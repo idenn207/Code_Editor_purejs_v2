@@ -90,6 +90,9 @@
      * @param {number} context.column - Cursor column
      * @param {string} context.prefix - Current word prefix
      * @param {number} context.cursorOffset - Cursor offset in document
+     * @param {number} context.cursorLine - Cursor line for locality bonus
+     * @param {Map} context.recentSelections - Recent selection tracking
+     * @param {Object} context.sortingOptions - VSCode-style sorting options
      * @returns {Array} Completion items
      */
     getCompletions(context) {
@@ -277,21 +280,30 @@
           kind: symbol.kind,
           typeInfo: symbol.type ? this._typeEngine.getTypeString(symbol.type) : 'any',
           isUnknown: !symbol.type || symbol.type.kind === TYPE_KIND.UNKNOWN,
-          sortOrder: this._getSortOrder(symbol)
+          sortOrder: this._getSortOrder(symbol),
+          declarationLine: symbol.line  // For locality bonus
         };
       }, this);
 
-      // Filter by prefix
+      // Filter by prefix (including CamelCase/snake_case)
+      var self = this;
       items = items.filter(function(item) {
-        return item.label.toLowerCase().indexOf(lowerPrefix) === 0;
+        if (item.label.toLowerCase().indexOf(lowerPrefix) === 0) {
+          return true;
+        }
+        // CamelCase/snake_case match
+        if (self._matchesCamelCase(item.label, prefix)) {
+          return true;
+        }
+        return false;
       });
 
       // Add keywords if they match
       var keywords = this._getMatchingKeywords(prefix);
       items = items.concat(keywords);
 
-      // Sort and dedupe
-      return this._sortAndDedupe(items, prefix);
+      // Sort and dedupe with context
+      return this._sortAndDedupe(items, prefix, context);
     }
 
     _getSortOrder(symbol) {
@@ -353,12 +365,21 @@
           kind: member.kind,
           typeInfo: member.typeInfo || 'any',
           isUnknown: member.isUnknown || false,
-          sortOrder: member.sortOrder || 0
+          sortOrder: member.sortOrder || 0,
+          declarationLine: member.declarationLine  // For locality bonus
         };
       });
     }
 
-    _sortAndDedupe(items, prefix) {
+    /**
+     * Sort and dedupe items with VSCode-style algorithm
+     * @param {Array} items - Completion items
+     * @param {string} prefix - Current prefix
+     * @param {Object} context - Completion context with sortingOptions, recentSelections, cursorLine
+     */
+    _sortAndDedupe(items, prefix, context) {
+      var self = this;
+
       // Remove duplicates
       var seen = new Set();
       var unique = items.filter(function(item) {
@@ -369,32 +390,105 @@
         return true;
       });
 
-      // Sort: exact match first, then by sortOrder, then alphabetically
-      var lowerPrefix = prefix.toLowerCase();
+      // Get sorting context
+      var sortingOptions = context && context.sortingOptions;
+      var recentSelections = context && context.recentSelections;
+      var cursorLine = context && context.cursorLine;
+      var maxItems = (sortingOptions && sortingOptions.maxItems) || 50;
 
+      // VSCode-style sorting
       unique.sort(function(a, b) {
-        // Exact match first
-        var aExact = a.label.toLowerCase() === lowerPrefix;
-        var bExact = b.label.toLowerCase() === lowerPrefix;
-        if (aExact && !bExact) return -1;
-        if (bExact && !aExact) return 1;
+        // 1. Match score (case sensitivity)
+        var aScore = self._calculateMatchScore(a.label, prefix, sortingOptions);
+        var bScore = self._calculateMatchScore(b.label, prefix, sortingOptions);
+        if (aScore !== bScore) return aScore - bScore;
 
-        // Then by sort order
+        // 2. Recent usage (if enabled)
+        if (sortingOptions && sortingOptions.recentlyUsed && recentSelections) {
+          var aRecent = recentSelections.has(a.label);
+          var bRecent = recentSelections.has(b.label);
+          if (aRecent && !bRecent) return -1;
+          if (bRecent && !aRecent) return 1;
+        }
+
+        // 3. Locality bonus (if enabled)
+        if (sortingOptions && sortingOptions.localityBonus && cursorLine !== undefined) {
+          var aLocality = self._getLocalityScore(a, cursorLine);
+          var bLocality = self._getLocalityScore(b, cursorLine);
+          if (aLocality !== bLocality) return aLocality - bLocality;
+        }
+
+        // 4. Sort order (kind-based priority)
         if (a.sortOrder !== b.sortOrder) {
           return a.sortOrder - b.sortOrder;
         }
 
-        // Then by unknown status
+        // 5. Unknown status
         if (a.isUnknown !== b.isUnknown) {
           return a.isUnknown ? 1 : -1;
         }
 
-        // Then alphabetically
+        // 6. Alphabetical
         return a.label.localeCompare(b.label);
       });
 
-      // Limit results
-      return unique.slice(0, 50);
+      return unique.slice(0, maxItems);
+    }
+
+    /**
+     * Calculate match score for VSCode-style sorting (lower = better)
+     */
+    _calculateMatchScore(label, prefix, sortingOptions) {
+      var lowerLabel = label.toLowerCase();
+      var lowerPrefix = prefix.toLowerCase();
+
+      // Exact matches
+      if (label === prefix) return 0;
+      if (lowerLabel === lowerPrefix) return 1;
+
+      // Prefix matches
+      if (label.startsWith(prefix)) return 2;
+      if (lowerLabel.startsWith(lowerPrefix)) return 3;
+
+      // CamelCase/snake_case matches
+      if (!sortingOptions || sortingOptions.camelCaseMatch !== false) {
+        if (this._matchesCamelCase(label, prefix)) return 4;
+      }
+
+      return 5;
+    }
+
+    /**
+     * Check if label matches prefix via CamelCase or snake_case initials
+     */
+    _matchesCamelCase(label, prefix) {
+      var lowerPrefix = prefix.toLowerCase();
+
+      // CamelCase: Extract initials from camelCase (getValue -> gv)
+      var camelInitials = label.replace(/[^A-Z]/g, '').toLowerCase();
+      var camelFull = (label[0] + camelInitials).toLowerCase();
+      if (camelFull.startsWith(lowerPrefix)) return true;
+
+      // snake_case: Extract initials from snake_case (get_value -> gv)
+      var snakeParts = label.split('_');
+      if (snakeParts.length > 1) {
+        var snakeInitials = snakeParts.map(function(p) { return p[0] || ''; }).join('').toLowerCase();
+        if (snakeInitials.startsWith(lowerPrefix)) return true;
+      }
+
+      return false;
+    }
+
+    /**
+     * Calculate locality score (lower = closer to cursor, better)
+     */
+    _getLocalityScore(item, cursorLine) {
+      if (item.declarationLine === undefined) return 2;  // Unknown = file scope
+
+      var distance = Math.abs(cursorLine - item.declarationLine);
+      if (distance < 10) return 0;   // Very close
+      if (distance < 50) return 1;   // Same region
+      return 2;                       // Far away
     }
 
     // ----------------------------------------
