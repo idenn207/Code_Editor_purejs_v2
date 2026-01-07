@@ -247,6 +247,64 @@
       this._editor.setSelections(newSelections);
     }
 
+    /**
+     * Save current selection positions (line, column) before document modification
+     * @returns {Array<{anchorLine: number, anchorCol: number, cursorLine: number, cursorCol: number}>}
+     */
+    _saveSelectionPositions() {
+      var doc = this._editor.document;
+      var selections = this._editor.getSelections();
+      var positions = [];
+
+      for (var i = 0; i < selections.all.length; i++) {
+        var sel = selections.all[i];
+        var anchorPos = doc.offsetToPosition(sel.anchor);
+        var cursorPos = doc.offsetToPosition(sel.cursor);
+
+        positions.push({
+          anchorLine: anchorPos.line,
+          anchorCol: anchorPos.column,
+          cursorLine: cursorPos.line,
+          cursorCol: cursorPos.column
+        });
+      }
+
+      return positions;
+    }
+
+    /**
+     * Restore selections from saved positions with a line delta applied
+     * @param {Array} positions - Saved positions from _saveSelectionPositions
+     * @param {number} lineDelta - Number of lines to shift (positive = down, negative = up)
+     */
+    _restoreSelectionPositions(positions, lineDelta) {
+      var doc = this._editor.document;
+      var newSelections = [];
+      var lineCount = doc.getLineCount();
+
+      for (var i = 0; i < positions.length; i++) {
+        var pos = positions[i];
+
+        var newAnchorLine = pos.anchorLine + lineDelta;
+        var newCursorLine = pos.cursorLine + lineDelta;
+
+        // Clamp to valid line range
+        newAnchorLine = Math.max(0, Math.min(newAnchorLine, lineCount - 1));
+        newCursorLine = Math.max(0, Math.min(newCursorLine, lineCount - 1));
+
+        // Clamp columns to new line lengths
+        var newAnchorCol = Math.min(pos.anchorCol, doc.getLine(newAnchorLine).length);
+        var newCursorCol = Math.min(pos.cursorCol, doc.getLine(newCursorLine).length);
+
+        var newAnchor = doc.positionToOffset(newAnchorLine, newAnchorCol);
+        var newCursor = doc.positionToOffset(newCursorLine, newCursorCol);
+
+        newSelections.push(Selection.range(newAnchor, newCursor));
+      }
+
+      this._editor.setSelections(newSelections);
+    }
+
     // ----------------------------------------
     // Toggle Line Comment
     // ----------------------------------------
@@ -406,6 +464,9 @@
       // Can't move up if first range starts at line 0
       if (lineRanges.length === 0 || lineRanges[0].startLine === 0) return;
 
+      // Save selection positions BEFORE modifying document
+      var savedPositions = this._saveSelectionPositions();
+
       // Process ranges from top to bottom for move up
       for (var i = 0; i < lineRanges.length; i++) {
         var range = lineRanges[i];
@@ -430,8 +491,8 @@
         doc.replaceRange(targetLineStart, endLineEnd, newText);
       }
 
-      // Update selections - each selection moves up by 1 line
-      this._shiftSelectionsVertically(-1);
+      // Restore selections with line shift applied
+      this._restoreSelectionPositions(savedPositions, -1);
     }
 
     /**
@@ -444,6 +505,9 @@
 
       // Can't move down if last range ends at last line
       if (lineRanges.length === 0 || lineRanges[lineRanges.length - 1].endLine >= lastLine) return;
+
+      // Save selection positions BEFORE modifying document
+      var savedPositions = this._saveSelectionPositions();
 
       // Process ranges from bottom to top for move down
       for (var i = lineRanges.length - 1; i >= 0; i--) {
@@ -469,8 +533,8 @@
         doc.replaceRange(startLineStart, targetLineEnd, newText);
       }
 
-      // Update selections - each selection moves down by 1 line
-      this._shiftSelectionsVertically(1);
+      // Restore selections with line shift applied
+      this._restoreSelectionPositions(savedPositions, 1);
     }
 
     // ----------------------------------------
