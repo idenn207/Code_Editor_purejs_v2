@@ -7,28 +7,8 @@
 
   // Get completion data from namespace
   var CompletionData = CodeEditor.CompletionData || {};
-  var JSData = CompletionData.JavaScript || {};
   var HTMLData = CompletionData.HTML || {};
   var CSSData = CompletionData.CSS || {};
-
-  // Get intelligent completion provider (may not be loaded yet)
-  var IntelligentCompletionProvider = null;
-
-  // JavaScript completions (using correct property names from js-completions.js)
-  var JS_KEYWORDS = JSData.keywords || [];
-  var JS_GLOBALS = JSData.globals || [];
-  var JS_GLOBAL_FUNCTIONS = JSData.globalFunctions || [];
-  var JS_OBJECT_MEMBERS = JSData.objectMembers || {};
-  var JS_ARRAY_METHODS = JSData.arrayMethods || [];
-  var JS_STRING_METHODS = JSData.stringMethods || [];
-  var JS_HTML_ELEMENT_MEMBERS = JSData.htmlElementMembers || [];
-  var JS_NODE_MEMBERS = JSData.nodeListMembers || [];
-  var JS_ELEMENT_RETURNING_METHODS = Object.keys(JSData.methodReturnTypes || {}).filter(function(m) {
-    return JSData.methodReturnTypes[m] === 'HTMLElement';
-  });
-  var JS_NESTED_MEMBERS = JSData.nestedMembers || {};
-  var JS_METHOD_RETURN_TYPES = JSData.methodReturnTypes || {};
-  var JS_TYPE_MEMBERS = JSData.typeMembers || {};
 
   // HTML completions (using correct property names from html-completions.js)
   var HTML_TAGS = HTMLData.tags || [];
@@ -57,7 +37,6 @@
 
     _editor = null;
     _intelligentProvider = null;
-    _useIntelligentCompletions = true;
     _sortingOptions = null;
 
     // ----------------------------------------
@@ -134,11 +113,8 @@
     // ----------------------------------------
 
     _getJavaScriptCompletions(lineText, column, prefix, fullText, context) {
-      if (!fullText) fullText = '';
-      var beforeCursor = lineText.slice(0, column);
-
-      // Try intelligent completions first if available
-      if (this._useIntelligentCompletions && this._intelligentProvider && context) {
+      // Use intelligent completions (type inference based)
+      if (this._intelligentProvider && context) {
         var intelligentContext = {
           lineText: lineText,
           column: column,
@@ -146,192 +122,16 @@
           cursorOffset: context.cursorOffset || 0
         };
 
-        // Check if intelligent provider can handle this context
         if (this._intelligentProvider.hasIntelligentCompletions(intelligentContext)) {
           var intelligentItems = this._intelligentProvider.getCompletions(intelligentContext);
-
           if (intelligentItems && intelligentItems.length > 0) {
             return intelligentItems;
           }
         }
       }
 
-      // Fall back to pattern-based completions
-
-      // Check for multi-level dot notation
-      var multiDotMatch = beforeCursor.match(/([\w$]+(?:\.[\w$]+)*)\.\s*([\w$]*)$/);
-      if (multiDotMatch) {
-        var chain = multiDotMatch[1];
-        return this._getChainedMemberCompletions(chain, fullText, beforeCursor);
-      }
-
-      // Default: keywords and globals
-      return [].concat(JS_KEYWORDS, JS_GLOBALS, JS_GLOBAL_FUNCTIONS);
-    }
-
-    _getChainedMemberCompletions(chain, fullText, beforeCursor) {
-      var self = this;
-      var parts = chain.split('.');
-
-      if (parts.length === 1) {
-        return this._getJSMemberCompletions(parts[0], fullText, beforeCursor);
-      }
-
-      var currentType = this._inferTypeFromName(parts[0], fullText);
-      var currentMembers = null;
-
-      for (var i = 1; i < parts.length; i++) {
-        var prop = parts[i];
-
-        if (JS_NESTED_MEMBERS[prop]) {
-          currentMembers = JS_NESTED_MEMBERS[prop];
-          currentType = null;
-        } else if (JS_METHOD_RETURN_TYPES[prop]) {
-          var returnType = JS_METHOD_RETURN_TYPES[prop];
-          currentMembers = JS_TYPE_MEMBERS[returnType] || null;
-          currentType = returnType;
-        } else if (currentType && JS_TYPE_MEMBERS[currentType]) {
-          if (JS_NESTED_MEMBERS[prop]) {
-            currentMembers = JS_NESTED_MEMBERS[prop];
-            currentType = null;
-          } else {
-            currentMembers = JS_TYPE_MEMBERS[currentType];
-          }
-        } else {
-          currentMembers = null;
-          currentType = null;
-        }
-      }
-
-      if (currentMembers) {
-        return currentMembers;
-      }
-
-      var lastProp = parts[parts.length - 1];
-      if (JS_NESTED_MEMBERS[lastProp]) {
-        return JS_NESTED_MEMBERS[lastProp];
-      }
-
-      if (this._chainLooksLikeDOMElement(parts, fullText)) {
-        return JS_HTML_ELEMENT_MEMBERS;
-      }
-
-      var combined = [].concat(JS_ARRAY_METHODS, JS_STRING_METHODS);
-      return combined.filter(function(item, index) {
-        return combined.indexOf(item) === index;
-      });
-    }
-
-    _inferTypeFromName(name, fullText) {
-      if (name === 'window') return 'Window';
-      if (name === 'document') return 'Document';
-
-      if (JS_OBJECT_MEMBERS[name]) {
-        return name;
-      }
-
-      if (this._isElementVariable(name, fullText) || this._looksLikeDOMElement(name)) {
-        return 'HTMLElement';
-      }
-
-      return null;
-    }
-
-    _chainLooksLikeDOMElement(parts, fullText) {
-      if (parts[0] === 'document') return true;
-      if (this._looksLikeDOMElement(parts[0])) return true;
-      if (this._isElementVariable(parts[0], fullText)) return true;
-
-      for (var i = 0; i < parts.length; i++) {
-        if (JS_ELEMENT_RETURNING_METHODS.indexOf(parts[i]) !== -1) {
-          return true;
-        }
-      }
-
-      return false;
-    }
-
-    _getJSMemberCompletions(objectName, fullText, beforeCursor) {
-      if (JS_OBJECT_MEMBERS[objectName]) {
-        return JS_OBJECT_MEMBERS[objectName];
-      }
-
-      if (fullText && this._isElementVariable(objectName, fullText)) {
-        return JS_HTML_ELEMENT_MEMBERS;
-      }
-
-      if (this._looksLikeDOMElement(objectName)) {
-        return JS_HTML_ELEMENT_MEMBERS;
-      }
-
-      var combined = [].concat(JS_ARRAY_METHODS, JS_STRING_METHODS);
-      return combined.filter(function(item, index) {
-        return combined.indexOf(item) === index;
-      });
-    }
-
-    _isElementVariable(varName, fullText) {
-      var patterns = [
-        new RegExp('(?:const|let|var)\\s+' + varName + '\\s*=\\s*(?:document\\.)?getElementById\\s*\\(', 'm'),
-        new RegExp('(?:const|let|var)\\s+' + varName + '\\s*=\\s*(?:document\\.)?querySelector\\s*\\(', 'm'),
-        new RegExp('(?:const|let|var)\\s+' + varName + '\\s*=\\s*(?:document\\.)?createElement\\s*\\(', 'm'),
-        new RegExp('(?:const|let|var)\\s+' + varName + '\\s*=\\s*\\w+\\.closest\\s*\\(', 'm'),
-        new RegExp('(?:const|let|var)\\s+' + varName + '\\s*=\\s*\\w+\\.cloneNode\\s*\\(', 'm'),
-        new RegExp('(?:const|let|var)\\s+' + varName + '\\s*=\\s*\\w+\\.target\\b', 'm'),
-        new RegExp('(?:const|let|var)\\s+' + varName + '\\s*=\\s*\\w+\\.currentTarget\\b', 'm'),
-        new RegExp(varName + '\\s*=\\s*(?:document\\.)?getElementById\\s*\\(', 'm'),
-        new RegExp(varName + '\\s*=\\s*(?:document\\.)?querySelector\\s*\\(', 'm'),
-      ];
-
-      for (var i = 0; i < patterns.length; i++) {
-        if (patterns[i].test(fullText)) {
-          return true;
-        }
-      }
-
-      return false;
-    }
-
-    _looksLikeDOMElement(varName) {
-      var lowerName = varName.toLowerCase();
-
-      var elementPatterns = [
-        /^el$/, /^elem$/, /^element$/,
-        /el$/i, /elem$/i, /element$/i,
-        /^btn/i, /button$/i,
-        /^input/i, /input$/i,
-        /^div/i, /div$/i,
-        /^span/i, /span$/i,
-        /^container/i, /container$/i,
-        /^wrapper/i, /wrapper$/i,
-        /^modal/i, /modal$/i,
-        /^dialog/i, /dialog$/i,
-        /^form/i, /form$/i,
-        /^header/i, /header$/i,
-        /^footer/i, /footer$/i,
-        /^nav/i, /nav$/i,
-        /^section/i, /section$/i,
-        /^canvas/i, /canvas$/i,
-        /^img/i, /^image/i, /image$/i,
-        /^link/i, /link$/i,
-        /^anchor/i,
-        /^table/i, /table$/i,
-        /^row/i, /row$/i,
-        /^cell/i, /cell$/i,
-        /^list/i, /list$/i,
-        /^item/i, /item$/i,
-        /^node/i, /node$/i,
-        /^dom/i,
-        /^target$/i, /^parent$/i, /^child$/i, /^sibling$/i,
-      ];
-
-      for (var i = 0; i < elementPatterns.length; i++) {
-        if (elementPatterns[i].test(lowerName)) {
-          return true;
-        }
-      }
-
-      return false;
+      // No completions available
+      return [];
     }
 
     // ----------------------------------------
