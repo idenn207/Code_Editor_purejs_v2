@@ -10,7 +10,6 @@
   var Editor = CodeEditor.Editor;
   var isEditContextSupported = CodeEditor.isEditContextSupported;
   var AutoCloseFeature = CodeEditor.Features.AutoClose;
-  var AutocompleteFeature = CodeEditor.Features.Autocomplete;
   var AutoIndentFeature = CodeEditor.Features.AutoIndent;
   var BracketMatchFeature = CodeEditor.Features.BracketMatch;
   var IndentGuideFeature = CodeEditor.Features.IndentGuide;
@@ -231,9 +230,6 @@
     lineHeight: 22,
   });
 
-  // Enable Autocomplete feature (must be before AutoIndent for Enter key priority)
-  var autocomplete = new AutocompleteFeature(editor);
-
   // Enable Auto-Close feature
   var autoClose = new AutoCloseFeature(editor);
 
@@ -311,7 +307,6 @@
   // Expose for debugging
   window.editor = editor;
   window.autoClose = autoClose;
-  window.autocomplete = autocomplete;
   window.autoIndent = autoIndent;
   window.bracketMatch = bracketMatch;
   window.indentGuide = indentGuide;
@@ -346,7 +341,6 @@
 
   console.log('Editor instance available as window.editor');
   console.log('AutoCloseFeature available as window.autoClose');
-  console.log('AutocompleteFeature available as window.autocomplete');
   console.log('AutoIndentFeature available as window.autoIndent');
   console.log('BracketMatchFeature available as window.bracketMatch');
   console.log('IndentGuideFeature available as window.indentGuide');
@@ -356,7 +350,6 @@
   console.log('');
   console.log('Search: Ctrl+F (find), Ctrl+H (replace)');
   console.log('Line Operations: Ctrl+/ (toggle comment), Alt+Up/Down (move line), Alt+Shift+Up/Down (duplicate line)');
-  console.log('Autocomplete: Ctrl+Space (trigger), Arrow keys (navigate), Enter/Tab (select)');
   console.log('Multi-Cursor: Alt+Click (add cursor), Ctrl+Alt+Up/Down (add cursor above/below), Ctrl+D (select next), Escape (collapse)');
   console.log('');
   console.log('Sample code available: SAMPLE_CODE_JS, SAMPLE_CODE_HTML, SAMPLE_CODE_CSS');

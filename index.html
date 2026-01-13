@@ -132,7 +132,6 @@
     window.CodeEditor = window.CodeEditor || {};
     window.CodeEditor.Grammars = {};
     window.CodeEditor.Features = {};
-    window.CodeEditor.CompletionData = {};
     window.CodeEditor.IDE = {};
   </script>
 
@@ -140,8 +139,6 @@
   <script src="src/tokenizer/grammars/javascript.js"></script>
   <script src="src/tokenizer/grammars/html.js"></script>
   <script src="src/tokenizer/grammars/css.js"></script>
-  <script src="src/features/autocomplete/data/html-completions.js"></script>
-  <script src="src/features/autocomplete/data/css-completions.js"></script>
 
   <!-- Phase 3: Foundation Models -->
   <script src="src/tokenizer/TokenizerState.js"></script>
@@ -163,54 +160,42 @@
   <!-- Phase 7: Core Editor -->
   <script src="src/core/Editor.js"></script>
 
-  <!-- Phase 8: Analysis Layer (for intelligent completions) -->
-  <script src="src/analysis/BuiltinTypes.js"></script>
-  <script src="src/analysis/SymbolTable.js"></script>
-  <script src="src/analysis/JSParser.js"></script>
-  <script src="src/analysis/ScopeAnalyzer.js"></script>
-  <script src="src/analysis/TypeInferenceEngine.js"></script>
-  <script src="src/analysis/ImportResolver.js"></script>
-
-  <!-- Phase 9: Feature Support Classes -->
-  <script src="src/features/autocomplete/IntelligentCompletionProvider.js"></script>
-  <script src="src/features/autocomplete/CompletionService.js"></script>
-  <script src="src/features/autocomplete/AutocompleteWidget.js"></script>
+  <!-- Phase 8: Feature Support Classes -->
   <script src="src/features/search/SearchService.js"></script>
   <script src="src/features/search/SearchWidget.js"></script>
   <script src="src/features/search/SearchDecorations.js"></script>
 
-  <!-- Phase 10: Features -->
+  <!-- Phase 9: Features -->
   <script src="src/features/autoClose/AutoCloseFeature.js"></script>
   <script src="src/features/autoIndent/AutoIndentFeature.js"></script>
   <script src="src/features/bracketMatch/BracketMatchFeature.js"></script>
   <script src="src/features/indentGuide/IndentGuideFeature.js"></script>
   <script src="src/features/multiCursor/MultiCursorFeature.js"></script>
-  <script src="src/features/autocomplete/AutocompleteFeature.js"></script>
   <script src="src/features/search/SearchFeature.js"></script>
   <script src="src/features/lineOperations/LineOperationsFeature.js"></script>
 
-  <!-- Phase 11: IDE Models -->
+  <!-- Phase 10: IDE Models -->
   <script src="src/model/Tab.js"></script>
   <script src="src/model/FileNode.js"></script>
 
-  <!-- Phase 12: IDE Services -->
+  <!-- Phase 11: IDE Services -->
   <script src="src/services/FileService.js"></script>
   <script src="src/services/WorkspaceService.js"></script>
 
-  <!-- Phase 13: IDE UI Components (no internal deps) -->
+  <!-- Phase 12: IDE UI Components (no internal deps) -->
   <script src="src/ide/ActivityBar.js"></script>
   <script src="src/ide/Sidebar.js"></script>
   <script src="src/ide/StatusBar.js"></script>
 
-  <!-- Phase 13: IDE UI Components (with deps) -->
+  <!-- Phase 12: IDE UI Components (with deps) -->
   <script src="src/ide/TabBar.js"></script>
   <script src="src/ide/FileExplorer.js"></script>
   <script src="src/ide/EditorArea.js"></script>
 
-  <!-- Phase 14: IDE Main Orchestrator -->
+  <!-- Phase 13: IDE Main Orchestrator -->
   <script src="src/ide/IDE.js"></script>
 
-  <!-- Phase 15: IDE Entry Point -->
+  <!-- Phase 14: IDE Entry Point -->
   <script src="src/ide-app.js"></script>
 </body>
 

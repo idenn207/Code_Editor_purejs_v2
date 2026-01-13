@@ -12,7 +12,6 @@
   var Tab = CodeEditor.Tab;
   var Editor = CodeEditor.Editor;
   var AutoCloseFeature = CodeEditor.Features.AutoClose;
-  var AutocompleteFeature = CodeEditor.Features.Autocomplete;
   var AutoIndentFeature = CodeEditor.Features.AutoIndent;
   var BracketMatchFeature = CodeEditor.Features.BracketMatch;
   var IndentGuideFeature = CodeEditor.Features.IndentGuide;
@@ -255,9 +254,6 @@
      * Initialize editor features
      */
     _initFeatures() {
-      // Autocomplete (must be before AutoIndent for Enter key priority)
-      this._features.autocomplete = new AutocompleteFeature(this._editor);
-
       // Auto-close brackets
       this._features.autoClose = new AutoCloseFeature(this._editor);
 
