@@ -10,7 +10,7 @@
   // Get dependencies
   var ActivityBar = CodeEditor.IDE.ActivityBar;
   var Sidebar = CodeEditor.IDE.Sidebar;
-  var EditorArea = CodeEditor.IDE.EditorArea;
+  var SplitContainer = CodeEditor.IDE.SplitContainer;
   var StatusBar = CodeEditor.IDE.StatusBar;
   var FileExplorer = CodeEditor.IDE.FileExplorer;
   var FileService = CodeEditor.FileService;
@@ -32,7 +32,7 @@
     // Components
     _activityBar = null;
     _sidebar = null;
-    _editorArea = null;
+    _splitContainer = null;
     _statusBar = null;
     _fileExplorer = null;
 
@@ -128,7 +128,7 @@
         var activeTab = this._workspaceService.getActiveTab();
         if (activeTab && activeTab.isDirty) {
           // Sync content from editor to tab and file service before saving
-          var editor = this._editorArea.getEditor();
+          var editor = this._splitContainer.getEditor();
           if (editor) {
             var content = editor.getValue();
             activeTab.setContent(content);
@@ -137,7 +137,7 @@
 
           await this._fileService.saveFile(activeTab.path);
           activeTab.markClean();
-          this._editorArea.updateTabDirty(activeTab.id, false);
+          this._splitContainer.updateTabDirty(activeTab.id, false);
           this._emit('fileSaved', { path: activeTab.path });
         }
       } catch (err) {
@@ -199,11 +199,29 @@
     }
 
     /**
-     * Get the editor instance
+     * Get the editor instance from active pane
      * @returns {Editor} Editor instance
      */
     getEditor() {
-      return this._editorArea ? this._editorArea.getEditor() : null;
+      return this._splitContainer ? this._splitContainer.getEditor() : null;
+    }
+
+    /**
+     * Get the SplitContainer instance
+     * @returns {SplitContainer}
+     */
+    getSplitContainer() {
+      return this._splitContainer;
+    }
+
+    /**
+     * Split the active editor pane
+     * @param {string} direction - 'horizontal' or 'vertical'
+     */
+    splitActivePane(direction) {
+      if (this._splitContainer) {
+        this._splitContainer.splitPane(direction);
+      }
     }
 
     /**
@@ -226,8 +244,8 @@
      * Focus the editor
      */
     focusEditor() {
-      if (this._editorArea) {
-        this._editorArea.focusEditor();
+      if (this._splitContainer) {
+        this._splitContainer.focusEditor();
       }
     }
 
@@ -237,7 +255,7 @@
     dispose() {
       if (this._activityBar) this._activityBar.dispose();
       if (this._sidebar) this._sidebar.dispose();
-      if (this._editorArea) this._editorArea.dispose();
+      if (this._splitContainer) this._splitContainer.dispose();
       if (this._statusBar) this._statusBar.dispose();
       if (this._fileExplorer) this._fileExplorer.dispose();
       this._listeners.clear();
@@ -384,8 +402,8 @@
         });
       }
 
-      // Editor Area
-      this._editorArea = new EditorArea(this._editorAreaContainer, {
+      // Split Container (replaces EditorArea)
+      this._splitContainer = new SplitContainer(this._editorAreaContainer, {
         workspaceService: this._workspaceService,
         fileService: this._fileService,
       });
@@ -393,7 +411,7 @@
       // Status Bar
       if (this._options.showStatusBar) {
         this._statusBar = new StatusBar(this._statusBarContainer, {
-          editor: this._editorArea.getEditor(),
+          editor: this._splitContainer.getEditor(),
         });
       }
     }
@@ -435,9 +453,9 @@
         });
       }
 
-      // Editor Area events
-      if (this._editorArea) {
-        this._editorArea.on('tabActivate', function(data) {
+      // SplitContainer events
+      if (this._splitContainer) {
+        this._splitContainer.on('tabActivate', function(data) {
           // Update status bar
           if (self._statusBar) {
             self._statusBar.setLanguage(data.tab.language);
@@ -445,22 +463,36 @@
           self._emit('tabActivated', { tab: data.tab });
         });
 
-        this._editorArea.on('tabClose', function(data) {
+        this._splitContainer.on('tabClose', function(data) {
           self._emit('tabClosed', { tabId: data.tabId });
         });
 
-        this._editorArea.on('contentChange', function() {
+        this._splitContainer.on('contentChange', function() {
           self._emit('contentChanged', {});
+        });
+
+        this._splitContainer.on('openFolder', function() {
+          self.openFolder();
+        });
+
+        this._splitContainer.on('activePaneChanged', function(data) {
+          // Update status bar with new pane's editor
+          if (self._statusBar && data.pane) {
+            var currentTab = data.pane.getCurrentTab();
+            if (currentTab) {
+              self._statusBar.setLanguage(currentTab.language);
+            }
+          }
         });
       }
 
       // Workspace Service events
       this._workspaceService.on('tabOpened', function(data) {
-        self._editorArea.addTab(data.tab);
+        self._splitContainer.addTab(data.tab);
       });
 
       this._workspaceService.on('tabActivated', function(data) {
-        self._editorArea.activateTab(data.tab.id);
+        self._splitContainer.activateTab(data.tab.id);
         // Update status bar language
         if (self._statusBar) {
           self._statusBar.setLanguage(data.tab.language);
@@ -468,7 +500,7 @@
       });
 
       this._workspaceService.on('tabClosed', function(data) {
-        self._editorArea.removeTab(data.tab.id);
+        self._splitContainer.removeTab(data.tab.id);
       });
 
       // Keyboard shortcuts
@@ -500,6 +532,18 @@
         e.preventDefault();
         this.setActiveView('explorer');
         if (this._fileExplorer) this._fileExplorer.focus();
+      }
+
+      // Ctrl+\: Split editor right (horizontal)
+      if (e.ctrlKey && e.key === '\\') {
+        e.preventDefault();
+        this.splitActivePane('horizontal');
+      }
+
+      // Ctrl+Shift+\: Split editor down (vertical)
+      if (e.ctrlKey && e.shiftKey && e.key === '|') {
+        e.preventDefault();
+        this.splitActivePane('vertical');
       }
     }
 

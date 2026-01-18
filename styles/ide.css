@@ -908,3 +908,68 @@
 .ide-dialog-btn-secondary:hover {
   background: var(--ide-hover-bg);
 }
+
+/* ============================================
+   SPLIT CONTAINER
+   ============================================ */
+
+.ide-split-container {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ide-split-container.horizontal {
+  flex-direction: row;
+}
+
+.ide-split-container.vertical {
+  flex-direction: column;
+}
+
+/* Split Pane */
+.ide-split-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 100px;
+  min-height: 100px;
+  overflow: hidden;
+  position: relative;
+}
+
+.ide-split-pane.active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--ide-focus-border);
+  z-index: 10;
+}
+
+/* Split Divider */
+.ide-split-divider {
+  flex-shrink: 0;
+  background: var(--ide-border);
+  z-index: 5;
+  transition: background 0.15s;
+}
+
+.ide-split-divider-horizontal {
+  width: 4px;
+  cursor: col-resize;
+}
+
+.ide-split-divider-vertical {
+  height: 4px;
+  cursor: row-resize;
+}
+
+.ide-split-divider:hover,
+.ide-split-divider.active {
+  background: var(--ide-focus-border);
+}
