@@ -13,6 +13,9 @@
   // Get dependencies
   var FileNode = CodeEditor.FileNode;
 
+  // Image file extensions
+  var IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'ico'];
+
   class FileService {
     // ============================================
     // Instance Members
@@ -132,16 +135,37 @@
 
       try {
         var file = await node.handle.getFile();
-        var content = await file.text();
+        var content;
+        var isImage = false;
+
+        // Check if file is an image
+        var ext = node.name.split('.').pop().toLowerCase();
+        if (IMAGE_EXTENSIONS.includes(ext)) {
+          // Read image as Base64 Data URL
+          var arrayBuffer = await file.arrayBuffer();
+          var bytes = new Uint8Array(arrayBuffer);
+          var binary = '';
+          for (var i = 0; i < bytes.length; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          var base64 = btoa(binary);
+          var mimeType = 'image/' + (ext === 'jpg' ? 'jpeg' : ext === 'svg' ? 'svg+xml' : ext);
+          content = 'data:' + mimeType + ';base64,' + base64;
+          isImage = true;
+        } else {
+          // Read as text
+          content = await file.text();
+        }
 
         var fileData = {
           content: content,
           handle: node.handle,
           node: node,
+          isImage: isImage,
         };
 
         this._files.set(node.path, fileData);
-        this._emit('fileOpened', { path: node.path, content: content, node: node });
+        this._emit('fileOpened', { path: node.path, content: content, node: node, isImage: isImage });
 
         return fileData;
       } catch (err) {

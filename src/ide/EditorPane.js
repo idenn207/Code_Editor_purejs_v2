@@ -32,7 +32,6 @@
     _container = null;
     _tabBarContainer = null;
     _editorContainer = null;
-    _welcomeElement = null;
 
     _tabBar = null;
     _editor = null;
@@ -47,6 +46,17 @@
 
     // Active state
     _isActive = false;
+
+    // Image viewer
+    _imageViewer = null;
+    _zoomLevel = 100;
+    _panX = 0;
+    _panY = 0;
+    _isDragging = false;
+    _dragStartX = 0;
+    _dragStartY = 0;
+    _panStartX = 0;
+    _panStartY = 0;
 
     // ============================================
     // Constructor
@@ -67,7 +77,6 @@
       this._createDOM();
       this._initComponents();
       this._bindEvents();
-      this._showWelcome();
     }
 
     // ============================================
@@ -105,8 +114,8 @@
      * @param {Tab} tab - Tab to add
      */
     addTab(tab) {
+      this._hideEmptyState();
       this._tabBar.addTab(tab);
-      this._hideWelcome();
     }
 
     /**
@@ -116,11 +125,11 @@
     removeTab(tabId) {
       this._tabBar.removeTab(tabId);
 
-      // Show welcome if no tabs
+      // Emit empty event if no tabs remain (pane will be closed by SplitContainer)
       if (this._tabBar.getTabCount() === 0) {
         this._currentTab = null;
         this._editor.setValue('');
-        this._showWelcome();
+        this._showEmptyState();
         this._emit('empty', { paneId: this._id });
       }
     }
@@ -268,25 +277,27 @@
       this._editorContainer = document.createElement('div');
       this._editorContainer.className = 'ide-editor-container';
       this._container.appendChild(this._editorContainer);
+    }
 
-      // Welcome screen
-      this._welcomeElement = document.createElement('div');
-      this._welcomeElement.className = 'ide-editor-welcome';
-      this._welcomeElement.innerHTML =
-        '<div class="ide-editor-welcome-logo">{ }</div>' +
-        '<div class="ide-editor-welcome-title">Code Editor IDE</div>' +
-        '<div class="ide-editor-welcome-subtitle">Open a file or folder to get started</div>' +
-        '<div class="ide-editor-welcome-actions">' +
-        '<button class="ide-editor-welcome-action" data-action="open-folder">' +
-        'Open Folder' +
-        '<span class="ide-editor-welcome-shortcut">Ctrl+K Ctrl+O</span>' +
-        '</button>' +
-        '<button class="ide-editor-welcome-action" data-action="open-file">' +
-        'Open File' +
-        '<span class="ide-editor-welcome-shortcut">Ctrl+O</span>' +
-        '</button>' +
+    /**
+     * Create image viewer DOM (must be called after Editor is created)
+     */
+    _createImageViewer() {
+      // Image viewer (hidden by default)
+      this._imageViewer = document.createElement('div');
+      this._imageViewer.className = 'ide-image-viewer';
+      this._imageViewer.innerHTML =
+        '<div class="ide-image-viewer-toolbar">' +
+          '<button class="ide-image-zoom-out" title="Zoom Out">−</button>' +
+          '<span class="ide-image-zoom-level">100%</span>' +
+          '<button class="ide-image-zoom-in" title="Zoom In">+</button>' +
+          '<button class="ide-image-zoom-fit" title="Fit to Window">Fit</button>' +
+          '<button class="ide-image-zoom-reset" title="Reset to 100%">1:1</button>' +
+        '</div>' +
+        '<div class="ide-image-viewer-content">' +
+          '<img class="ide-image-preview" />' +
         '</div>';
-      this._editorContainer.appendChild(this._welcomeElement);
+      this._editorContainer.appendChild(this._imageViewer);
     }
 
     /**
@@ -304,11 +315,20 @@
         lineHeight: 22,
       });
 
+      // Editor sets className to 'ec-editor', add back ide-editor-container for flex layout
+      this._editorContainer.classList.add('ide-editor-container');
+
+      // Create image viewer (must be after Editor since Editor clears the container)
+      this._createImageViewer();
+
       // Initialize editor features
       this._initFeatures();
 
-      // Hide editor initially (show welcome)
-      this._editor.view.container.style.display = 'none';
+      // Initialize image viewer events
+      this._bindImageViewerEvents();
+
+      // Start in empty state (no tabs)
+      this._showEmptyState();
     }
 
     /**
@@ -368,6 +388,14 @@
           self._workspaceService.closeTabById(data.tabId);
         }
         self._emit('tabClose', { tabId: data.tabId, paneId: self._id });
+
+        // Check if all tabs are closed (tab is already removed from TabBar at this point)
+        if (self._tabBar.getTabCount() === 0) {
+          self._currentTab = null;
+          self._editor.setValue('');
+          self._showEmptyState();
+          self._emit('empty', { paneId: self._id });
+        }
       });
 
       this._tabBar.on('tabCloseRequest', function(data) {
@@ -400,34 +428,6 @@
         });
       });
 
-      // Welcome screen actions
-      this._welcomeElement.addEventListener('click', function(e) {
-        var action = e.target.closest('[data-action]');
-        if (action) {
-          var actionName = action.dataset.action;
-          if (actionName === 'open-folder') {
-            self._emit('openFolder', { paneId: self._id });
-          } else if (actionName === 'open-file') {
-            self._emit('openFile', { paneId: self._id });
-          }
-        }
-      });
-    }
-
-    /**
-     * Show welcome screen
-     */
-    _showWelcome() {
-      this._welcomeElement.style.display = '';
-      this._editor.view.container.style.display = 'none';
-    }
-
-    /**
-     * Hide welcome screen
-     */
-    _hideWelcome() {
-      this._welcomeElement.style.display = 'none';
-      this._editor.view.container.style.display = '';
     }
 
     /**
@@ -550,6 +550,37 @@
         this._workspaceService.forceCloseTabById(tabId);
       }
       this._emit('tabClose', { tabId: tabId, paneId: this._id });
+
+      // Emit empty event if no tabs remain (pane will be closed by SplitContainer)
+      if (this._tabBar.getTabCount() === 0) {
+        this._currentTab = null;
+        this._editor.setValue('');
+        this._showEmptyState();
+        this._emit('empty', { paneId: this._id });
+      }
+    }
+
+    /**
+     * Show empty state (black screen)
+     */
+    _showEmptyState() {
+      this._container.classList.add('empty');
+      this._editorContainer.classList.remove('image-mode');
+      var wrapper = this._getEditorWrapper();
+      if (wrapper) {
+        wrapper.style.display = 'none';
+      }
+      if (this._imageViewer) {
+        this._imageViewer.style.display = 'none';
+      }
+    }
+
+    /**
+     * Hide empty state
+     */
+    _hideEmptyState() {
+      this._container.classList.remove('empty');
+      // Note: The actual visibility is controlled by _showImageViewer/_showCodeEditor
     }
 
     /**
@@ -557,19 +588,75 @@
      * @param {Tab} tab - Tab to switch to
      */
     _switchToTab(tab) {
-      // Save current tab state
-      if (this._currentTab) {
+      // Save current tab state (only for code tabs)
+      if (this._currentTab && !this._currentTab.isImage()) {
         this._currentTab.saveState(this._editor);
       }
 
       // Load new tab
       this._currentTab = tab;
 
-      // Hide welcome, show editor
-      this._hideWelcome();
+      // Hide empty state if visible
+      this._hideEmptyState();
 
-      // Set editor content
+      // Check if this is an image tab
+      if (tab.isImage()) {
+        this._showImageViewer(tab.content);
+      } else {
+        this._showCodeEditor(tab);
+      }
+    }
+
+    /**
+     * Get the editor wrapper element
+     * @returns {HTMLElement}
+     */
+    _getEditorWrapper() {
+      return this._editorContainer.querySelector('.ec-editor-wrapper');
+    }
+
+    /**
+     * Show image viewer with the given data URL
+     * @param {string} dataUrl - Image data URL
+     */
+    _showImageViewer(dataUrl) {
+      // Hide code editor wrapper, show image viewer
+      var wrapper = this._getEditorWrapper();
+      if (wrapper) {
+        wrapper.style.display = 'none';
+      }
+      this._imageViewer.style.display = 'flex';
+      this._editorContainer.classList.add('image-mode');
+
+      // Set image source
+      var img = this._imageViewer.querySelector('.ide-image-preview');
+      img.src = dataUrl;
+
+      // Reset zoom when switching images
+      this._resetZoom();
+    }
+
+    /**
+     * Show code editor with the given tab
+     * @param {Tab} tab - Tab to display
+     */
+    _showCodeEditor(tab) {
+      // Hide image viewer, show code editor wrapper
+      this._imageViewer.style.display = 'none';
+      this._editorContainer.classList.remove('image-mode');
+      var wrapper = this._getEditorWrapper();
+      if (wrapper) {
+        wrapper.style.display = '';
+      }
+
+      // Suppress undo recording during tab content switch
+      this._editor.setSuppressUndo(true);
+
+      // Set editor content (this will NOT create an undo entry)
       this._editor.setValue(tab.content || '');
+
+      // Re-enable undo recording
+      this._editor.setSuppressUndo(false);
 
       // Set language
       if (tab.language) {
@@ -581,6 +668,127 @@
 
       // Focus editor
       this._editor.focus();
+    }
+
+    /**
+     * Bind image viewer toolbar events
+     */
+    _bindImageViewerEvents() {
+      var self = this;
+      var content = this._imageViewer.querySelector('.ide-image-viewer-content');
+
+      this._imageViewer.querySelector('.ide-image-zoom-in').onclick = function() {
+        self._setZoom(self._zoomLevel + 25);
+      };
+
+      this._imageViewer.querySelector('.ide-image-zoom-out').onclick = function() {
+        self._setZoom(self._zoomLevel - 25);
+      };
+
+      this._imageViewer.querySelector('.ide-image-zoom-fit').onclick = function() {
+        self._fitToWindow();
+      };
+
+      this._imageViewer.querySelector('.ide-image-zoom-reset').onclick = function() {
+        self._resetZoom();
+      };
+
+      // Mouse wheel zoom
+      content.addEventListener('wheel', function(e) {
+        if (e.ctrlKey) {
+          e.preventDefault();
+          var delta = e.deltaY > 0 ? -25 : 25;
+          self._setZoom(self._zoomLevel + delta);
+        }
+      });
+
+      // Drag to pan image
+      content.addEventListener('mousedown', function(e) {
+        if (e.button !== 0) return; // Left click only
+        self._isDragging = true;
+        self._dragStartX = e.clientX;
+        self._dragStartY = e.clientY;
+        self._panStartX = self._panX;
+        self._panStartY = self._panY;
+        content.style.cursor = 'grabbing';
+        e.preventDefault();
+      });
+
+      content.addEventListener('mousemove', function(e) {
+        if (!self._isDragging) return;
+        var dx = e.clientX - self._dragStartX;
+        var dy = e.clientY - self._dragStartY;
+        self._panX = self._panStartX + dx;
+        self._panY = self._panStartY + dy;
+        self._updateImageTransform();
+      });
+
+      content.addEventListener('mouseup', function() {
+        self._isDragging = false;
+        content.style.cursor = '';
+      });
+
+      content.addEventListener('mouseleave', function() {
+        self._isDragging = false;
+        content.style.cursor = '';
+      });
+    }
+
+    /**
+     * Update image transform (zoom + pan)
+     */
+    _updateImageTransform() {
+      var img = this._imageViewer.querySelector('.ide-image-preview');
+      var scale = this._zoomLevel / 100;
+      img.style.transform = 'translate(' + this._panX + 'px, ' + this._panY + 'px) scale(' + scale + ')';
+    }
+
+    /**
+     * Set zoom level
+     * @param {number} level - Zoom level percentage
+     */
+    _setZoom(level) {
+      this._zoomLevel = Math.max(25, Math.min(400, level));
+      this._updateImageTransform();
+      this._imageViewer.querySelector('.ide-image-zoom-level').textContent = this._zoomLevel + '%';
+    }
+
+    /**
+     * Fit image to window
+     */
+    _fitToWindow() {
+      var img = this._imageViewer.querySelector('.ide-image-preview');
+      var content = this._imageViewer.querySelector('.ide-image-viewer-content');
+
+      // Wait for image to load if needed
+      if (!img.naturalWidth) {
+        var self = this;
+        img.onload = function() {
+          self._fitToWindow();
+        };
+        return;
+      }
+
+      var containerWidth = content.clientWidth - 40; // padding
+      var containerHeight = content.clientHeight - 40;
+
+      var scaleX = containerWidth / img.naturalWidth;
+      var scaleY = containerHeight / img.naturalHeight;
+      var scale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond 100%
+
+      // Reset pan and set zoom
+      this._panX = 0;
+      this._panY = 0;
+      this._setZoom(Math.round(scale * 100));
+    }
+
+    /**
+     * Reset zoom to 100% and center image
+     */
+    _resetZoom() {
+      this._panX = 0;
+      this._panY = 0;
+      this._setZoom(100);
     }
   }
 

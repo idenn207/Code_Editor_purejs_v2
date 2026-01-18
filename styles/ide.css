@@ -613,8 +613,11 @@
 
 .ide-editor-container {
   flex: 1;
-  overflow: hidden;
   position: relative;
+}
+
+.ide-editor-container.image-mode {
+  overflow: hidden;
 }
 
 /* Welcome Screen */
@@ -949,6 +952,11 @@
   height: 1px;
   background: var(--ide-focus-border);
   z-index: 10;
+}
+
+/* Empty pane state (no tabs) */
+.ide-split-pane.empty .ide-editor-container {
+  background: var(--ide-editor-bg);
 }
 
 /* Split Divider */
@@ -1336,4 +1344,92 @@
 .ide-search-empty-icon svg {
   width: 48px;
   height: 48px;
+}
+
+/* ============================================
+   IMAGE VIEWER
+   ============================================ */
+
+.ide-image-viewer {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+  background: var(--ide-editor-bg);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+}
+
+.ide-image-viewer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--ide-sidebar-bg);
+  border-bottom: 1px solid var(--ide-border);
+  flex-shrink: 0;
+}
+
+.ide-image-viewer-toolbar button {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--ide-border);
+  color: var(--ide-fg);
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 13px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.ide-image-viewer-toolbar button:hover {
+  background: var(--ide-hover-bg);
+  border-color: var(--ide-focus-border);
+}
+
+.ide-image-viewer-toolbar button:active {
+  background: var(--ide-active-bg);
+}
+
+.ide-image-zoom-level {
+  min-width: 50px;
+  text-align: center;
+  color: var(--ide-fg);
+  font-size: 12px;
+  font-family: monospace;
+}
+
+.ide-image-viewer-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0d0d0d;
+  cursor: grab;
+  background-image:
+    linear-gradient(45deg, #1a1a1a 25%, transparent 25%),
+    linear-gradient(-45deg, #1a1a1a 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #1a1a1a 75%),
+    linear-gradient(-45deg, transparent 75%, #1a1a1a 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+}
+
+.ide-image-viewer-content:active {
+  cursor: grabbing;
+}
+
+.ide-image-preview {
+  max-width: none;
+  max-height: none;
+  transform-origin: center center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  background: white;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  flex-shrink: 0;
 }

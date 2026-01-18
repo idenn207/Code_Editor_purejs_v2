@@ -71,6 +71,12 @@
   --ec-hover-code-bg: #1e1e1e;
   --ec-hover-text: #cccccc;
   --ec-hover-code: #9cdcfe;
+
+  /* Autocomplete/Search widget colors */
+  --ec-autocomplete-bg: #252526;
+  --ec-autocomplete-border: #454545;
+  --ec-autocomplete-hover: #2a2d2e;
+  --ec-autocomplete-selected: #094771;
 }
 
 /* ============================================
@@ -96,10 +102,15 @@
    Layout
    ============================================ */
 
+.ec-editor-scroll {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+
 .ec-editor-wrapper {
   display: flex;
-  height: 100%;
-  overflow: auto; /* FIX Issue 3: Allow scrolling */
+  min-height: 100%;
 }
 
 /* ============================================
@@ -115,6 +126,7 @@
   padding-right: 10px;
   user-select: none;
   border-right: 1px solid var(--ec-border);
+  z-index: 10;
 }
 
 .ec-gutter-line {
@@ -128,7 +140,7 @@
 .ec-content {
   flex: 1;
   position: relative;
-  overflow: visible; /* FIX Issue 3: Changed from hidden to visible */
+  overflow: visible;
   cursor: text;
   min-width: 0; /* Allow flex shrinking */
 }
@@ -637,26 +649,26 @@
    Scrollbar Styling
    ============================================ */
 
-.ec-editor-wrapper::-webkit-scrollbar {
+.ec-editor-scroll::-webkit-scrollbar {
   width: 14px;
   height: 14px;
 }
 
-.ec-editor-wrapper::-webkit-scrollbar-track {
+.ec-editor-scroll::-webkit-scrollbar-track {
   background: var(--ec-bg);
 }
 
-.ec-editor-wrapper::-webkit-scrollbar-thumb {
+.ec-editor-scroll::-webkit-scrollbar-thumb {
   background: rgba(121, 121, 121, 0.4);
   border: 3px solid var(--ec-bg);
   border-radius: 7px;
 }
 
-.ec-editor-wrapper::-webkit-scrollbar-thumb:hover {
+.ec-editor-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(121, 121, 121, 0.7);
 }
 
-.ec-editor-wrapper::-webkit-scrollbar-corner {
+.ec-editor-scroll::-webkit-scrollbar-corner {
   background: var(--ec-bg);
 }
 
@@ -696,7 +708,8 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 13px;
-  min-width: 320px;
+  min-width: 280px;
+  max-width: calc(100% - 40px);
 }
 
 .ec-search-row {
@@ -706,13 +719,26 @@
   margin-bottom: 6px;
 }
 
+.ec-search-input-wrapper {
+  width: 200px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  background: var(--ec-bg);
+  border: 1px solid var(--ec-border);
+  border-radius: 3px;
+}
+
+.ec-search-input-wrapper:focus-within {
+  border-color: #007acc;
+}
+
 .ec-search-input,
 .ec-replace-input {
   flex: 1;
-  background: var(--ec-bg);
+  background: transparent;
   color: var(--ec-fg);
-  border: 1px solid var(--ec-border);
-  border-radius: 3px;
+  border: none;
   padding: 5px 8px;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 13px;
@@ -722,7 +748,6 @@
 .ec-search-input:focus,
 .ec-replace-input:focus {
   outline: none;
-  border-color: #007acc;
 }
 
 .ec-match-count {
@@ -736,6 +761,10 @@
 
 .ec-match-count.ec-no-results {
   color: #f44747;
+}
+
+.ec-match-count.ec-match-count-hidden {
+  display: none;
 }
 
 .ec-search-btn {
@@ -768,24 +797,32 @@
 
 .ec-search-options {
   display: flex;
-  gap: 4px;
-  margin-bottom: 6px;
+  align-items: center;
+  gap: 2px;
+  padding-right: 4px;
+  flex-shrink: 0;
 }
 
 .ec-search-toggle {
   background: transparent;
-  border: 1px solid var(--ec-border);
+  border: 1px solid transparent;
   color: var(--ec-fg);
-  padding: 3px 8px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
   border-radius: 3px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11px;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  opacity: 0.6;
+  opacity: 0.5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .ec-search-toggle:hover {
   opacity: 0.8;
+  background: var(--ec-autocomplete-hover);
 }
 
 .ec-search-toggle.active {

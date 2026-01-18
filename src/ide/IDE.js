@@ -129,7 +129,7 @@
      */
     async saveCurrentFile() {
       try {
-        var activeTab = this._workspaceService.getActiveTab();
+        var activeTab = this._splitContainer.getCurrentTab();
         if (activeTab && activeTab.isDirty) {
           // Sync content from editor to tab and file service before saving
           var editor = this._splitContainer.getEditor();

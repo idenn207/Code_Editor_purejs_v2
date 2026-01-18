@@ -343,7 +343,7 @@
 
       if (position !== null) {
         var offset = this._editor.document.positionToOffset(position.line, position.column);
-        this._editor.setSelection(offset, offset);
+        this._editor.setSelection(offset, offset, true); // skipScroll for mouse click
       }
 
       this._textarea.focus();
@@ -370,7 +370,7 @@
           var currentSelection = this._editor.getSelection();
 
           if (currentSelection.start !== start || currentSelection.end !== end) {
-            this._editor.setSelection(start, end);
+            this._editor.setSelection(start, end, true); // skipScroll for mouse drag
           }
         }
       } catch (error) {
@@ -567,7 +567,7 @@
 
     focus() {
       if (this._textarea) {
-        this._textarea.focus();
+        this._textarea.focus({ preventScroll: true });
       }
     }
 

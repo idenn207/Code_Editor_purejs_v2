@@ -7,6 +7,9 @@
 (function(CodeEditor) {
   'use strict';
 
+  // Image file extensions
+  var IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'ico'];
+
   class Tab {
     // ============================================
     // Static Members
@@ -21,6 +24,7 @@
     _id = null;
     _path = '';
     _name = '';
+    _type = 'code'; // 'code' | 'image'
     _language = 'javascript';
     _isDirty = false;
     _isPinned = false;
@@ -46,6 +50,7 @@
       this._id = options.id || this._generateId();
       this._path = options.path || '';
       this._name = options.name || this._extractName(options.path);
+      this._type = options.type || this._detectType(options.path);
       this._language = options.language || this._detectLanguage(options.path);
       this._isDirty = options.isDirty || false;
       this._isPinned = options.isPinned || false;
@@ -190,6 +195,14 @@
     }
 
     /**
+     * Check if this tab is an image file
+     * @returns {boolean}
+     */
+    isImage() {
+      return this._type === 'image';
+    }
+
+    /**
      * Clone this tab
      * @returns {Tab} Cloned tab
      */
@@ -198,6 +211,7 @@
       return new Tab({
         path: this._path,
         name: this._name,
+        type: this._type,
         language: this._language,
         content: this._content,
         handle: this._handle,
@@ -230,6 +244,18 @@
       if (!path) return 'Untitled';
       var parts = path.split('/');
       return parts[parts.length - 1] || 'Untitled';
+    }
+
+    /**
+     * Detect file type from path
+     * @param {string} path - File path
+     * @returns {string} Type ('code' | 'image')
+     */
+    _detectType(path) {
+      if (!path) return 'code';
+      var parts = path.split('.');
+      var ext = parts.length > 1 ? parts.pop().toLowerCase() : '';
+      return IMAGE_EXTENSIONS.includes(ext) ? 'image' : 'code';
     }
 
     /**
@@ -286,6 +312,7 @@
     set path(value) {
       this._path = value;
       this._name = this._extractName(value);
+      this._type = this._detectType(value);
       this._language = this._detectLanguage(value);
     }
 
@@ -295,6 +322,10 @@
 
     set name(value) {
       this._name = value;
+    }
+
+    get type() {
+      return this._type;
     }
 
     get language() {

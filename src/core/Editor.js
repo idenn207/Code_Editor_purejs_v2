@@ -178,8 +178,9 @@
      * For backward compatibility with single-cursor code
      * @param {number} start - Selection start offset
      * @param {number} end - Selection end offset
+     * @param {boolean} [skipScroll=false] - Skip auto-scroll to cursor
      */
-    setSelection(start, end) {
+    setSelection(start, end, skipScroll) {
       var docLength = this._document.getLength();
       var clampedStart = Math.max(0, Math.min(start, docLength));
       var clampedEnd = Math.max(0, Math.min(end, docLength));
@@ -191,8 +192,10 @@
         isReversed
       );
 
-      // Scroll cursor into view
-      this._view.scrollToCursor();
+      // Scroll cursor into view (unless skipped, e.g., for mouse clicks)
+      if (!skipScroll) {
+        this._view.scrollToCursor();
+      }
 
       this._emit('selectionChange', this._selections);
     }
@@ -200,8 +203,9 @@
     /**
      * Set all selections at once
      * @param {Array<Selection|{start: number, end: number}>} selections - New selections
+     * @param {boolean} [skipScroll=false] - Skip auto-scroll to cursor
      */
-    setSelections(selections) {
+    setSelections(selections, skipScroll) {
       var self = this;
       var docLength = this._document.getLength();
 
@@ -217,7 +221,9 @@
       });
 
       this._selections.setAll(clampedSelections);
-      this._view.scrollToCursor();
+      if (!skipScroll) {
+        this._view.scrollToCursor();
+      }
       this._emit('selectionChange', this._selections);
     }
 
@@ -627,7 +633,7 @@
         if (range.start !== range.end) {
           var deletedText = this._document.getTextRange(range.start, range.end);
           this._document.replaceRange(range.start, range.end, '');
-          changes.unshift({
+          changes.push({
             startOffset: range.start,
             deletedLength: range.end - range.start,
             deletedText: deletedText,

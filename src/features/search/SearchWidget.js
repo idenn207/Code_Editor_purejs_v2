@@ -57,6 +57,9 @@
     // Debounce timer
     _debounceTimer = null;
 
+    // ResizeObserver
+    _resizeObserver = null;
+
     // ----------------------------------------
     // Constructor
     // ----------------------------------------
@@ -78,6 +81,7 @@
 
       this._createDOM();
       this._bindEvents();
+      this._setupResizeObserver();
     }
 
     // ----------------------------------------
@@ -91,19 +95,23 @@
 
       this._container.innerHTML =
         '<div class="ec-search-row">' +
-          '<input type="text" class="ec-search-input" placeholder="Find" spellcheck="false" />' +
+          '<div class="ec-search-input-wrapper">' +
+            '<input type="text" class="ec-search-input" placeholder="Find" spellcheck="false" />' +
+            '<div class="ec-search-options">' +
+              '<button class="ec-search-toggle" data-option="caseSensitive" title="Match Case">Aa</button>' +
+              '<button class="ec-search-toggle" data-option="wholeWord" title="Match Whole Word">\\b</button>' +
+              '<button class="ec-search-toggle" data-option="regex" title="Use Regular Expression">.*</button>' +
+            '</div>' +
+          '</div>' +
           '<span class="ec-match-count">No results</span>' +
           '<button class="ec-search-btn ec-search-prev" title="Previous Match (Shift+Enter)">&#x2191;</button>' +
           '<button class="ec-search-btn ec-search-next" title="Next Match (Enter)">&#x2193;</button>' +
           '<button class="ec-search-btn ec-search-close" title="Close (Escape)">&times;</button>' +
         '</div>' +
-        '<div class="ec-search-options">' +
-          '<button class="ec-search-toggle" data-option="caseSensitive" title="Match Case">Aa</button>' +
-          '<button class="ec-search-toggle" data-option="wholeWord" title="Match Whole Word">\\b</button>' +
-          '<button class="ec-search-toggle" data-option="regex" title="Use Regular Expression">.*</button>' +
-        '</div>' +
         '<div class="ec-replace-row">' +
-          '<input type="text" class="ec-replace-input" placeholder="Replace" spellcheck="false" />' +
+          '<div class="ec-search-input-wrapper">' +
+            '<input type="text" class="ec-replace-input" placeholder="Replace" spellcheck="false" />' +
+          '</div>' +
           '<button class="ec-search-btn ec-replace-btn" title="Replace">Replace</button>' +
           '<button class="ec-search-btn ec-replace-all-btn" title="Replace All">All</button>' +
         '</div>';
@@ -184,6 +192,15 @@
       } else if (e.key === 'Escape') {
         e.preventDefault();
         this.hide();
+      } else if ((e.key === 'f' || e.key === 'h') && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        if (e.key === 'h') {
+          this.show('replace');
+          this._replaceInput.focus();
+          this._replaceInput.select();
+        } else {
+          this._findInput.select();
+        }
       }
     }
 
@@ -198,6 +215,35 @@
       } else if (e.key === 'Escape') {
         e.preventDefault();
         this.hide();
+      } else if ((e.key === 'f' || e.key === 'h') && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        if (e.key === 'f') {
+          this._findInput.focus();
+          this._findInput.select();
+        } else {
+          this._replaceInput.select();
+        }
+      }
+    }
+
+    _setupResizeObserver() {
+      var self = this;
+      this._resizeObserver = new ResizeObserver(function(entries) {
+        for (var entry of entries) {
+          var width = entry.contentRect.width;
+          self._handleResize(width);
+        }
+      });
+      this._resizeObserver.observe(this._container);
+    }
+
+    _handleResize(width) {
+      // Only hide match count if widget is visible and width is actually small
+      // Don't hide when width is 0 (container not rendered yet)
+      if (width > 0 && width < 350) {
+        this._matchCount.classList.add('ec-match-count-hidden');
+      } else {
+        this._matchCount.classList.remove('ec-match-count-hidden');
       }
     }
 
@@ -226,6 +272,12 @@
       this._container.style.display = 'block';
 
       this._replaceRow.style.display = mode === 'replace' ? 'flex' : 'none';
+
+      // Trigger resize check after display
+      var self = this;
+      requestAnimationFrame(function() {
+        self._handleResize(self._container.offsetWidth);
+      });
 
       var selectedText = this._editor.getSelectedText();
       if (selectedText && selectedText.indexOf('\n') === -1) {
@@ -323,6 +375,10 @@
      */
     dispose() {
       clearTimeout(this._debounceTimer);
+      if (this._resizeObserver) {
+        this._resizeObserver.disconnect();
+        this._resizeObserver = null;
+      }
       if (this._container) this._container.remove();
       this._editor = null;
     }

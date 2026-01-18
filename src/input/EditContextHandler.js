@@ -326,7 +326,7 @@
 
       if (position !== null) {
         var offset = this._editor.document.positionToOffset(position.line, position.column);
-        this._editor.setSelection(offset, offset);
+        this._editor.setSelection(offset, offset, true); // skipScroll for mouse click
         this._syncEditContextSelection();
       }
     }
@@ -357,7 +357,7 @@
 
           // Only update if the selection has actually changed
           if (currentSelection.start !== start || currentSelection.end !== end) {
-            this._editor.setSelection(start, end);
+            this._editor.setSelection(start, end, true); // skipScroll for mouse drag
             this._syncEditContextSelection();
           }
         }
@@ -721,7 +721,7 @@
     // ----------------------------------------
 
     focus() {
-      this._element.focus();
+      this._element.focus({ preventScroll: true });
     }
 
     isFocused() {

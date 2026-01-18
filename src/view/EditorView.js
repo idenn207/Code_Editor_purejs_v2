@@ -39,6 +39,7 @@
     _tokenizer = null;
 
     // DOM Elements
+    _scrollContainer = null;
     _wrapper = null;
     _gutterElement = null;
     _contentElement = null;
@@ -93,6 +94,10 @@
       this._container.innerHTML = '';
       this._container.className = 'ec-editor';
 
+      // Scroll container (this element scrolls)
+      this._scrollContainer = document.createElement('div');
+      this._scrollContainer.className = 'ec-editor-scroll';
+
       // Main wrapper
       this._wrapper = document.createElement('div');
       this._wrapper.className = 'ec-editor-wrapper';
@@ -130,7 +135,8 @@
       this._wrapper.appendChild(this._gutterElement);
       this._wrapper.appendChild(this._contentElement);
 
-      this._container.appendChild(this._wrapper);
+      this._scrollContainer.appendChild(this._wrapper);
+      this._container.appendChild(this._scrollContainer);
 
       // Apply font styles
       this._applyStyles();
@@ -254,6 +260,11 @@
           cursor.classList.remove('ec-cursor-blink');
           cursor.style.opacity = '0';
         }
+      });
+
+      // Keep gutter fixed during horizontal scroll
+      this._scrollContainer.addEventListener('scroll', function() {
+        self._gutterElement.style.transform = 'translateX(' + self._scrollContainer.scrollLeft + 'px)';
       });
     }
 
@@ -882,23 +893,42 @@
     }
 
     /**
-     * Scroll to ensure primary cursor is visible
+     * Scroll to ensure primary cursor is visible with padding
      */
     scrollToCursor() {
       // Scroll to primary selection's cursor
       var primary = this._editor.getSelections().primary;
       var pos = this._editor.document.offsetToPosition(primary.cursor);
 
+      // Scroll padding (like VSCode) - keeps cursor away from edges
+      var verticalPadding = this._lineHeight * 3; // 3 lines padding
+      var horizontalPadding = this._charWidth * 3; // 3 chars padding
+
+      // Vertical scrolling
       var cursorTop = pos.line * this._lineHeight;
       var cursorBottom = cursorTop + this._lineHeight;
 
-      var viewTop = this._wrapper.scrollTop;
-      var viewBottom = viewTop + this._wrapper.clientHeight;
+      var viewTop = this._scrollContainer.scrollTop;
+      var viewBottom = viewTop + this._scrollContainer.clientHeight;
 
-      if (cursorTop < viewTop) {
-        this._wrapper.scrollTop = cursorTop;
-      } else if (cursorBottom > viewBottom) {
-        this._wrapper.scrollTop = cursorBottom - this._wrapper.clientHeight;
+      if (cursorTop < viewTop + verticalPadding) {
+        this._scrollContainer.scrollTop = Math.max(0, cursorTop - verticalPadding);
+      } else if (cursorBottom > viewBottom - verticalPadding) {
+        this._scrollContainer.scrollTop = cursorBottom - this._scrollContainer.clientHeight + verticalPadding;
+      }
+
+      // Horizontal scrolling (account for gutter width)
+      var gutterWidth = this._gutterElement.offsetWidth;
+      var cursorLeft = gutterWidth + (pos.column * this._charWidth);
+      var cursorRight = cursorLeft + this._charWidth;
+
+      var viewLeft = this._scrollContainer.scrollLeft;
+      var viewRight = viewLeft + this._scrollContainer.clientWidth;
+
+      if (cursorLeft < viewLeft + gutterWidth + horizontalPadding) {
+        this._scrollContainer.scrollLeft = Math.max(0, cursorLeft - gutterWidth - horizontalPadding);
+      } else if (cursorRight > viewRight - horizontalPadding) {
+        this._scrollContainer.scrollLeft = cursorRight - this._scrollContainer.clientWidth + horizontalPadding;
       }
     }
 
@@ -919,6 +949,34 @@
 
       // Re-render with new tokenizer
       this._render();
+    }
+
+    // ----------------------------------------
+    // Scroll Position
+    // ----------------------------------------
+
+    /**
+     * Get current scroll position
+     * @returns {{ top: number, left: number }}
+     */
+    getScrollPosition() {
+      return {
+        top: this._scrollContainer.scrollTop,
+        left: this._scrollContainer.scrollLeft
+      };
+    }
+
+    /**
+     * Set scroll position
+     * @param {{ top: number, left: number }} position
+     */
+    setScrollPosition(position) {
+      if (position.top !== undefined) {
+        this._scrollContainer.scrollTop = position.top;
+      }
+      if (position.left !== undefined) {
+        this._scrollContainer.scrollLeft = position.left;
+      }
     }
 
     // ----------------------------------------

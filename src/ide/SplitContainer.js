@@ -132,6 +132,13 @@
       var sourcePane = this.getPane(paneId);
       if (!sourcePane) return null;
 
+      // Get current tab from source pane - required for split
+      var currentTab = sourcePane.getCurrentTab();
+      if (!currentTab) {
+        console.warn('Cannot split: no active tab in source pane');
+        return null;
+      }
+
       // Set split direction
       this._splitDirection = direction;
       this._container.classList.add(direction);
@@ -154,6 +161,11 @@
       var sourcePaneContainer = sourcePane.getContainer();
       sourcePaneContainer.after(divider.getElement());
       divider.getElement().after(newPaneContainer);
+
+      // Clone the current tab and add to new pane
+      var clonedTab = currentTab.clone();
+      newPane.addTab(clonedTab);
+      newPane.activateTab(clonedTab.id);
 
       // Set equal sizes
       this._setEqualSizes();
@@ -191,8 +203,12 @@
         }
       }
 
-      // Remove pane
+      // Remove pane container from DOM and dispose
+      var paneContainer = pane.getContainer();
       pane.dispose();
+      if (paneContainer && paneContainer.parentNode) {
+        paneContainer.parentNode.removeChild(paneContainer);
+      }
       this._panes.splice(paneIndex, 1);
 
       // If this was active pane, activate another

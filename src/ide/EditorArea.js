@@ -475,6 +475,13 @@
         this._workspaceService.forceCloseTabById(tabId);
       }
       this._emit('tabClose', { tabId: tabId });
+
+      // Show welcome if no tabs remain
+      if (this._tabBar.getTabCount() === 0) {
+        this._currentTab = null;
+        this._editor.setValue('');
+        this._showWelcome();
+      }
     }
 
     /**
