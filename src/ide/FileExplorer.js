@@ -154,6 +154,26 @@
     }
 
     /**
+     * Show the file explorer
+     */
+    show() {
+      var wrapper = this._container.querySelector('.ide-file-explorer');
+      if (wrapper) {
+        wrapper.style.display = '';
+      }
+    }
+
+    /**
+     * Hide the file explorer
+     */
+    hide() {
+      var wrapper = this._container.querySelector('.ide-file-explorer');
+      if (wrapper) {
+        wrapper.style.display = 'none';
+      }
+    }
+
+    /**
      * Clear the file tree
      */
     clear() {

@@ -13,8 +13,10 @@
   var SplitContainer = CodeEditor.IDE.SplitContainer;
   var StatusBar = CodeEditor.IDE.StatusBar;
   var FileExplorer = CodeEditor.IDE.FileExplorer;
+  var SearchPanel = CodeEditor.IDE.SearchPanel;
   var FileService = CodeEditor.FileService;
   var WorkspaceService = CodeEditor.WorkspaceService;
+  var GlobalSearchService = CodeEditor.GlobalSearchService;
 
   class IDE {
     // ============================================
@@ -35,10 +37,12 @@
     _splitContainer = null;
     _statusBar = null;
     _fileExplorer = null;
+    _searchPanel = null;
 
     // Services
     _fileService = null;
     _workspaceService = null;
+    _globalSearchService = null;
 
     // State
     _isSidebarVisible = true;
@@ -258,6 +262,7 @@
       if (this._splitContainer) this._splitContainer.dispose();
       if (this._statusBar) this._statusBar.dispose();
       if (this._fileExplorer) this._fileExplorer.dispose();
+      if (this._searchPanel) this._searchPanel.dispose();
       this._listeners.clear();
 
       if (this._rootElement && this._rootElement.parentNode) {
@@ -388,7 +393,7 @@
         });
       }
 
-      // Sidebar with File Explorer
+      // Sidebar with File Explorer and Search Panel
       if (this._options.showSidebar) {
         this._sidebar = new Sidebar(this._sidebarContainer, {
           width: this._options.sidebarWidth,
@@ -399,6 +404,16 @@
         // File Explorer
         this._fileExplorer = new FileExplorer(this._sidebar.getContentElement(), {
           fileService: this._fileService,
+        });
+
+        // Global Search Service and Panel
+        this._globalSearchService = new GlobalSearchService(
+          this._fileService,
+          this._workspaceService
+        );
+        this._searchPanel = new SearchPanel(this._sidebar.getContentElement(), {
+          ide: this,
+          searchService: this._globalSearchService,
         });
       }
 
@@ -425,13 +440,29 @@
       // Activity Bar view change
       if (this._activityBar) {
         this._activityBar.on('viewChange', function(data) {
+          var previousView = self._activeView;
           self._activeView = data.view;
-          // If clicking active view, toggle sidebar
-          if (self._isSidebarVisible && data.view === self._activeView) {
-            self.toggleSidebar();
-          } else {
+
+          // Switch between views
+          if (data.view === 'explorer') {
+            if (self._fileExplorer) self._fileExplorer.show();
+            if (self._searchPanel) self._searchPanel.hide();
+            self._sidebar.setTitle('EXPLORER');
+          } else if (data.view === 'search') {
+            if (self._fileExplorer) self._fileExplorer.hide();
+            if (self._searchPanel) {
+              self._searchPanel.show();
+              self._searchPanel.focus();
+            }
+            self._sidebar.setTitle('SEARCH');
+          }
+
+          // Show sidebar if hidden when changing views
+          if (!self._isSidebarVisible) {
             self.showSidebar();
           }
+
+          self._emit('viewChanged', { view: data.view, previousView: previousView });
         });
       }
 
@@ -532,6 +563,12 @@
         e.preventDefault();
         this.setActiveView('explorer');
         if (this._fileExplorer) this._fileExplorer.focus();
+      }
+
+      // Ctrl+Shift+F: Open search in files
+      if (e.ctrlKey && e.shiftKey && e.key === 'F') {
+        e.preventDefault();
+        this.setActiveView('search');
       }
 
       // Ctrl+\: Split editor right (horizontal)
