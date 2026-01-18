@@ -482,7 +482,7 @@
      * @param {Tab} tab - Tab to switch to
      */
     _switchToTab(tab) {
-      // Save current tab state
+      // Save current tab state (including undo/redo stacks)
       if (this._currentTab) {
         this._currentTab.saveState(this._editor);
       }
@@ -493,15 +493,21 @@
       // Hide welcome, show editor
       this._hideWelcome();
 
-      // Set editor content
+      // Suppress undo recording during tab content switch
+      this._editor.setSuppressUndo(true);
+
+      // Set editor content (this will NOT create an undo entry)
       this._editor.setValue(tab.content || '');
+
+      // Re-enable undo recording
+      this._editor.setSuppressUndo(false);
 
       // Set language
       if (tab.language) {
         this._editor.setLanguage(tab.language);
       }
 
-      // Restore tab state (scroll, selection)
+      // Restore tab state (scroll, selection, AND undo/redo stacks)
       tab.restoreState(this._editor);
 
       // Focus editor

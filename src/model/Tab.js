@@ -31,6 +31,8 @@
     _scrollPosition = { top: 0, left: 0 };
     _selections = []; // Array of {start, end} for multi-cursor support
     _cursorPosition = { line: 0, column: 0 };
+    _undoStack = [];
+    _redoStack = [];
 
     // ============================================
     // Constructor
@@ -54,6 +56,8 @@
       this._scrollPosition = options.scrollPosition || { top: 0, left: 0 };
       this._selections = options.selections || [];
       this._cursorPosition = options.cursorPosition || { line: 0, column: 0 };
+      this._undoStack = options.undoStack || [];
+      this._redoStack = options.redoStack || [];
     }
 
     // ============================================
@@ -109,6 +113,14 @@
       if (typeof editor.getCursorPosition === 'function') {
         this._cursorPosition = editor.getCursorPosition();
       }
+
+      // Save undo/redo stacks
+      if (typeof editor.getUndoStack === 'function') {
+        this._undoStack = editor.getUndoStack();
+      }
+      if (typeof editor.getRedoStack === 'function') {
+        this._redoStack = editor.getRedoStack();
+      }
     }
 
     /**
@@ -136,6 +148,14 @@
       // Restore cursor position (if no selection)
       if (this._selections.length === 0 && typeof editor.setCursorPosition === 'function') {
         editor.setCursorPosition(this._cursorPosition.line, this._cursorPosition.column);
+      }
+
+      // Restore undo/redo stacks
+      if (typeof editor.setUndoStack === 'function') {
+        editor.setUndoStack(this._undoStack);
+      }
+      if (typeof editor.setRedoStack === 'function') {
+        editor.setRedoStack(this._redoStack);
       }
     }
 
@@ -184,6 +204,8 @@
         scrollPosition: { top: this._scrollPosition.top, left: this._scrollPosition.left },
         selections: this._selections.map(function(s) { return { start: s.start, end: s.end }; }),
         cursorPosition: { line: this._cursorPosition.line, column: this._cursorPosition.column },
+        undoStack: this._undoStack.slice(),
+        redoStack: this._redoStack.slice(),
       });
     }
 
@@ -325,6 +347,22 @@
 
     get cursorPosition() {
       return this._cursorPosition;
+    }
+
+    get undoStack() {
+      return this._undoStack;
+    }
+
+    set undoStack(value) {
+      this._undoStack = value;
+    }
+
+    get redoStack() {
+      return this._redoStack;
+    }
+
+    set redoStack(value) {
+      this._redoStack = value;
     }
 
     /**

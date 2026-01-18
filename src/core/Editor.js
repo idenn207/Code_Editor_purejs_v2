@@ -58,6 +58,7 @@
     _listeners = new Map();
     _disposed = false;
     _batchingUndo = false;
+    _suppressUndo = false;
 
     // ----------------------------------------
     // Constructor
@@ -120,8 +121,8 @@
     // ----------------------------------------
 
     _onDocumentChange(change) {
-      // Skip undo tracking during batch operations (handled separately)
-      if (!this._batchingUndo) {
+      // Skip undo tracking during batch operations or suppression (tab switches)
+      if (!this._batchingUndo && !this._suppressUndo) {
         // Add to undo stack
         this._undoStack.push({
           type: 'replace',
@@ -418,6 +419,46 @@
      */
     canRedo() {
       return this._redoStack.length > 0;
+    }
+
+    /**
+     * Get current undo stack (for tab switching)
+     * @returns {Array} Undo stack
+     */
+    getUndoStack() {
+      return this._undoStack;
+    }
+
+    /**
+     * Set undo stack (for tab switching)
+     * @param {Array} stack - New undo stack
+     */
+    setUndoStack(stack) {
+      this._undoStack = stack || [];
+    }
+
+    /**
+     * Get current redo stack (for tab switching)
+     * @returns {Array} Redo stack
+     */
+    getRedoStack() {
+      return this._redoStack;
+    }
+
+    /**
+     * Set redo stack (for tab switching)
+     * @param {Array} stack - New redo stack
+     */
+    setRedoStack(stack) {
+      this._redoStack = stack || [];
+    }
+
+    /**
+     * Suppress undo recording temporarily (for tab switches)
+     * @param {boolean} suppress - Whether to suppress
+     */
+    setSuppressUndo(suppress) {
+      this._suppressUndo = suppress;
     }
 
     // ----------------------------------------
